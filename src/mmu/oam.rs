@@ -1,8 +1,7 @@
 use crate::utils::Memory;
 
-pub struct Hram {}
-
-impl Memory for Hram {
+pub struct Oam {}
+impl Memory for Oam {
     fn read(&self, addr: u16) -> u8 {
         // TODO:
         0x00

@@ -1,9 +1,11 @@
-const Z_FLAG: u8 = 0x80;
-const N_FLAG: u8 = 0x40;
-const H_FLAG: u8 = 0x20;
-const C_FLAG: u8 = 0x10;
+use crate::bus;
 
-struct GameBoyCPU {
+pub const Z_FLAG: u8 = 0x80;
+pub const N_FLAG: u8 = 0x40;
+pub const H_FLAG: u8 = 0x20;
+pub const C_FLAG: u8 = 0x10;
+
+pub struct GameBoyCPU {
     // Where it all begins! (kinda)
     reg: Reg,
 }
@@ -99,15 +101,37 @@ impl GameBoyCPU {
         Self { reg: Reg::new() }
     }
 
-    // fn fetch(&self) -> u16 {
-    //     // fetch the next instruction
-    // }
+    fn tick() {
+        // Fetch
 
-    // fn decode() -> GBCInst{
-    //     // decode the next instruction
-    // }
-    //
-    // fn execute() -> {
-    //     // exec baby
-    // }
+        // Decode
+        // Execute
+    }
+
+    fn fetch_byte(&mut self, bus: &bus::Bus) -> u8 {
+        let pc = self.reg.PC();
+        let res = bus.read(pc);
+        self.reg.s_PC(pc.wrapping_add(1));
+        res
+    }
+
+    fn execute(&mut self, opcode: u8, bus: &bus::Bus) {
+        match opcode {
+            0x0 => {
+                // NOOP
+                // DO NOTHING
+            }
+            // LD BC, nn
+            0x01 => {
+                // get the nn
+                let lower = self.fetch_byte(bus);
+                let higher = self.fetch_byte(bus);
+                // combine PPAP style
+                let res = ((higher as u16) << 8) | lower as u16;
+                self.reg.s_BC(res);
+            }
+
+            _ => panic!("what about this case, son?"),
+        }
+    }
 }
