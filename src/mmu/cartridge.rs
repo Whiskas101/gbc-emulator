@@ -34,6 +34,8 @@ pub enum MbcType {
 }
 
 pub struct Cartridge {
+    rom_size: u32,
+
     rom: Vec<u8>, // for the data in the GAME ROM
     ram: Vec<u8>, // EXTERNAL ram, to be used for stuff like save files
 
@@ -48,6 +50,7 @@ pub struct Cartridge {
     rom_bank: usize, //defaults to 1
 
     // This one is like the previous one, except ie holds which RAM bank is mapped to 0xA000 - 0xBFFF
+    // This value is dictated by the Game ROM that's loaded in, not dynamic at all.
     ram_bank: usize, // defaults to 0
 
     // Cartridge RAM is enabled by the game, before use
@@ -93,6 +96,18 @@ impl Cartridge {
             ),
         };
 
+        let _rom_size = data[0x0148];
+        let rom_size: u32 = match _rom_size {
+            0x00..=0x08 => (32 * 1024) << _rom_size,
+            0x52 => 1152 * 1024, // (1.1MiB) which is 72 banks
+            0x53 => 1280 * 1024, // (1.2MiB) which is 80 banks
+            0x54 => 1536 * 1024, // (1.5MiB) which is 96 banks
+            _ => {
+                println!("Unexpected value for rom_size! Defaulting to 0");
+                0
+            }
+        };
+
         let ram_size_info = data[0x0149];
         let mut ram_size = match ram_size_info {
             0x00 => 0,
@@ -117,6 +132,7 @@ impl Cartridge {
         };
 
         Self {
+            rom_size: rom_size,
             rom: data,                    // put it there as is, cause why not
             ram: vec![0 as u8; ram_size], // initialize preallocated, with zeroes
             mbc_type: mbc_type,
