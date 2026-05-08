@@ -177,7 +177,7 @@ impl Memory for Cartridge {
 
             // Reading from the cartridge RAM (SWAPPABLE)
             0xA000..=0xBFFF => {
-                if !self.ram_enabled | self.ram.is_empty() {
+                if !self.ram_enabled || self.ram.is_empty() {
                     return 0xFF;
                 }
 
