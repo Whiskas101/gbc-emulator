@@ -1,5 +1,5 @@
+#![allow(non_snake_case)]
 use crate::bus;
-
 pub const Z_FLAG: u8 = 0x80;
 pub const N_FLAG: u8 = 0x40;
 pub const H_FLAG: u8 = 0x20;
