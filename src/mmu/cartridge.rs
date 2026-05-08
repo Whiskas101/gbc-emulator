@@ -177,8 +177,18 @@ impl Memory for Cartridge {
 
             // Reading from the cartridge RAM (SWAPPABLE)
             0xA000..=0xBFFF => {
+                if !self.ram_enabled | self.ram.is_empty() {
+                    return 0xFF;
+                }
+
                 // Handling RAM, if it's available.
-                todo!()
+                let normalized_addr = (addr - 0xA000) as usize;
+                let bank_size = 8192_usize; // 8kb
+                let bank_offset = (self.ram_bank * bank_size) as usize;
+
+                let resolved_addr = ((normalized_addr + bank_offset) % self.ram.len()) as usize;
+
+                self.ram[resolved_addr]
             }
 
             // the addr is in the FIRST bank (BANK ZERO)
