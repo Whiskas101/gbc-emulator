@@ -1,11 +1,5 @@
 use crate::utils::Memory;
 
-pub enum MbcType {
-    NoMbc,
-    Mbc1,
-    // MAYBE more idk
-}
-
 pub struct Io {}
 
 impl Memory for Io {
