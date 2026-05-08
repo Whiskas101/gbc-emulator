@@ -200,7 +200,7 @@ impl Memory for Cartridge {
                 // let offset = (bank * 1024 * 16);
                 // 16kb offset times the bank number
                 let bank_offset = bank * 0x4000;
-                let bank_offset = bank_offset as u8;
+                let bank_offset = bank_offset as usize;
 
                 // The trick here is to convert the addr
                 // WHICH comes from the CPU, that is simply thinking
@@ -209,14 +209,14 @@ impl Memory for Cartridge {
                 // Now, that addr needs to be converted into a simple 0 to N
                 // based number, which is then used as the offset.
                 let normalized_addr = addr - 0x4000;
-                let normalized_addr = normalized_addr as u8;
+                let normalized_addr = normalized_addr as usize;
 
                 // The above trick exploits the fact that 0x4000 is precisely
                 // the start of the address range this match statement hooks
                 // into. WHICH provides a nice 0 to N number to map to ANY
                 // bank, assuming I get the bank_offset calculation right
 
-                self.rom[(normalized_addr + bank_offset) as usize]
+                self.rom[normalized_addr + bank_offset]
             }
 
             _ => todo!(),
