@@ -94,7 +94,7 @@ impl Cartridge {
         };
 
         let ram_size_info = data[0x0149];
-        let ram_size = match ram_size_info {
+        let mut ram_size = match ram_size_info {
             0x00 => 0,
             0x01 => 0, // docs say unused
             0x02 => 8 * 1024,
@@ -108,6 +108,14 @@ impl Cartridge {
             }
         };
 
+        // EXCEPTION!! MBC2 variants are special.
+        match mbc_type {
+            MbcType::MBC2 | MbcType::Mbc2Battery => {
+                ram_size = 512;
+            }
+            _ => {} // do nothing since mbc2 is the odd one out really
+        };
+
         Self {
             rom: data,                    // put it there as is, cause why not
             ram: vec![0 as u8; ram_size], // initialize preallocated, with zeroes
@@ -117,15 +125,74 @@ impl Cartridge {
             ram_enabled: false,
         }
     }
+
+    fn get_mapped_rom_bank(&self) -> usize {
+        match self.mbc_type {
+            MbcType::RomOnly => 0,
+            MbcType::MBC1 | MbcType::Mbc1Ram | MbcType::Mbc1RamBattery => {
+                if self.rom_bank == 0 {
+                    1
+                } else {
+                    self.rom_bank
+                }
+            }
+            _ => {
+                // JUST temporary default behaviour to get the emulator
+                // to a core boot stage
+                // TODO: Actually implement most of the MBC types so this
+                // is usable.
+                self.rom_bank
+            }
+        }
+    }
 }
 
 impl Memory for Cartridge {
     fn read(&self, addr: u16) -> u8 {
+        // Catridge is meant to fully capture and abstract over the concept
+        // of the read op so that the actual CPU doesn't know, or rather
+        // doesn't HAVE to know about what mountains are being moved
+        // to get the data from the cartridge.
         match addr {
             // NOW this is where it gets interesting?
             // 0x0103 - 0x0133 stores the actual nintendo logo, which is funny because any
             // unauthorized games would have to violate a trademark to ilegally make a game for the
             // nintendo GameBoyColor
+
+            // Reading from the cartridge RAM (SWAPPABLE)
+            0xA000..=0xBFFF => {
+                // Handling RAM, if it's available.
+                todo!()
+            }
+
+            // the addr is in the FIRST bank (BANK ZERO)
+            0x0000..=0x3FFF => self.rom[addr as usize],
+
+            // Reading from the swappable ROM (bank 1 and beyond)
+            0x4000..=0x7FFF => {
+                let bank = self.get_mapped_rom_bank();
+                // let offset = (bank * 1024 * 16);
+                // 16kb offset times the bank number
+                let bank_offset = bank * 0x4000;
+                let bank_offset = bank_offset as u8;
+
+                // The trick here is to convert the addr
+                // WHICH comes from the CPU, that is simply thinking
+                // in 32bit addresses, of which, this branch will only get
+                // the LATTER 16 kb address space.
+                // Now, that addr needs to be converted into a simple 0 to N
+                // based number, which is then used as the offset.
+                let normalized_addr = addr - 0x4000;
+                let normalized_addr = normalized_addr as u8;
+
+                // The above trick exploits the fact that 0x4000 is precisely
+                // the start of the address range this match statement hooks
+                // into. WHICH provides a nice 0 to N number to map to ANY
+                // bank, assuming I get the bank_offset calculation right
+
+                self.rom[(normalized_addr + bank_offset) as usize]
+            }
+
             _ => todo!(),
         }
     }
