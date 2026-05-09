@@ -166,11 +166,11 @@ pub enum CpuState {
 pub struct GameBoyCPU {
     // Where it all begins! (kinda)
     pub state: CpuState,
-    reg: Reg,
+    regs: Regs,
     temp_val: u8,
 }
 
-pub struct Reg {
+pub struct Regs {
     pub a: u8,
     pub b: u8,
     pub c: u8,
@@ -189,9 +189,9 @@ pub struct Reg {
     sp: u16, // 16 bit stack pointer
 }
 
-impl Reg {
+impl Regs {
     pub fn new() -> Self {
-        Reg {
+        Regs {
             a: 0, // HIGH
             b: 0, // HIGH
             c: 0, // LOW
@@ -207,50 +207,68 @@ impl Reg {
         }
     }
 
-    pub fn AF(&self) -> u16 {
-        ((self.a as u16) << 8) | (self.f as u16)
+    pub fn read8(&self, reg: Reg8) -> u8 {
+        match reg {
+            Reg8::A => self.a,
+            Reg8::B => self.b,
+            Reg8::C => self.c,
+            Reg8::D => self.d,
+            Reg8::E => self.e,
+            Reg8::H => self.h,
+            Reg8::L => self.l,
+        }
     }
 
-    pub fn BC(&self) -> u16 {
-        ((self.b as u16) << 8) | self.c as u16
+    pub fn write8(&mut self, reg: Reg8, val: u8) {
+        match reg {
+            Reg8::A => self.a = val,
+            Reg8::B => self.b = val,
+            Reg8::C => self.c = val,
+            Reg8::D => self.d = val,
+            Reg8::E => self.e = val,
+            Reg8::H => self.h = val,
+            Reg8::L => self.l = val,
+        }
     }
 
-    pub fn DE(&self) -> u16 {
-        ((self.d as u16) << 8) | self.e as u16
+    pub fn read16(&self, reg: Reg16) -> u16 {
+        match reg {
+            Reg16::AF => (self.a as u16) << 8 | self.f as u16,
+            Reg16::BC => (self.b as u16) << 8 | self.c as u16,
+            Reg16::DE => (self.d as u16) << 8 | self.e as u16,
+            Reg16::HL => (self.h as u16) << 8 | self.l as u16,
+            Reg16::SP => self.sp,
+        }
     }
 
-    pub fn HL(&self) -> u16 {
-        ((self.h as u16) << 8) | self.l as u16
+    pub fn write16(&mut self, reg: Reg16, val: u16) {
+        match reg {
+            Reg16::AF => {
+                self.a = ((val & 0xFF00) >> 8) as u8;
+                // THE last nibble must be zeroed out for AF register
+                // Reasons? the reference said so.
+                self.f = (val & 0x00F0) as u8;
+            }
+            Reg16::BC => {
+                self.b = ((val & 0xFF00) >> 8) as u8;
+                self.c = (val & 0x00FF) as u8;
+            }
+            Reg16::DE => {
+                self.d = ((val & 0xFF00) >> 8) as u8;
+                self.e = (val & 0x00FF) as u8;
+            }
+            Reg16::HL => {
+                self.h = ((val & 0xFF00) >> 8) as u8;
+                self.l = (val & 0x00FF) as u8;
+            }
+            Reg16::SP => self.sp = val,
+        }
     }
 
-    pub fn SP(&self) -> u16 {
-        self.sp as u16
-    }
     pub fn PC(&self) -> u16 {
         self.pc as u16
     }
 
-    pub fn s_AF(&mut self, val: u16) {
-        // set the high bits
-        self.a = ((val & 0xFF00) >> 8) as u8; // get MSB 8 bits
-        // FOR SOME reason, the LAST 4 bits in F must ALWAYS, ALWAYS BE ZERO.
-        self.f = (val & 0x00F0) as u8; // get the last 8 bits (mask ensures last 4 bits are zero)
-    }
-    pub fn s_BC(&mut self, val: u16) {
-        self.b = ((val & 0xFF00) >> 8) as u8; // get MSB 8 bits
-        self.c = (val & 0x00FF) as u8; // get the last 8 bits
-    }
-    pub fn s_DE(&mut self, val: u16) {
-        self.d = ((val & 0xFF00) >> 8) as u8; // get MSB 8 bits
-        self.e = (val & 0x00FF) as u8; // get the last 8 bits
-    }
-    pub fn s_HL(&mut self, val: u16) {
-        self.h = ((val & 0xFF00) >> 8) as u8; // get MSB 8 bits
-        self.l = (val & 0x00FF) as u8; // get the last 8 bits
-    }
-    pub fn s_SP(&mut self, val: u16) {
-        self.sp = val;
-    }
     pub fn s_PC(&mut self, val: u16) {
         self.pc = val;
     }
@@ -259,10 +277,20 @@ impl Reg {
 impl GameBoyCPU {
     fn new() -> Self {
         Self {
-            reg: Reg::new(),
+            regs: Regs::new(),
             state: CpuState::FetchOpCode,
             temp_val: 0,
         }
+    }
+
+    // MEANT to simulate 1 Machine cycle
+    // which is 4 T states
+    fn fetch_advance_pc(&mut self, bus: &bus::Bus) -> u8 {
+        let pc = self.regs.pc;
+        let val = bus.read(pc);
+
+        self.regs.s_PC(pc.wrapping_add(1));
+        val
     }
 
     fn tick() {
@@ -272,30 +300,5 @@ impl GameBoyCPU {
         // Execute
     }
 
-    fn fetch_byte(&mut self, bus: &bus::Bus) -> u8 {
-        let pc = self.reg.PC();
-        let res = bus.read(pc);
-        self.reg.s_PC(pc.wrapping_add(1));
-        res
-    }
-
-    fn execute(&mut self, opcode: u8, bus: &bus::Bus) {
-        match opcode {
-            0x0 => {
-                // NOOP
-                // DO NOTHING
-            }
-            // LD BC, nn
-            0x01 => {
-                // get the nn
-                let lower = self.fetch_byte(bus);
-                let higher = self.fetch_byte(bus);
-                // combine PPAP style
-                let res = ((higher as u16) << 8) | lower as u16;
-                self.reg.s_BC(res);
-            }
-
-            _ => panic!("what about this case, son?"),
-        }
-    }
+    fn execute(&mut self, opcode: u8, bus: &bus::Bus) {}
 }
