@@ -1,94 +1,83 @@
-use crate::utils::Memory;
+use crate::{
+    mmu::{MbcTrait, mbcs},
+    utils::Memory,
+};
+
 // BUILT WITH THIS AS THE REFERENCE: https://gbdev.io/pandocs/The_Cartridge_Header.html
 
-pub enum MbcType {
-    RomOnly,
-    MBC1,
-    Mbc1Ram,
-    Mbc1RamBattery,
-    MBC2,
-    Mbc2Battery,
-    RomRam,
-    RomRamBattery,
-    MMM01,
-    Mmm01Ram,
-    Mmm01RamBattery,
-    Mbc3TimerBattery,
-    Mbc3TimerRamBattery,
-    MBC3,
-    Mbc3Ram,
-    Mbc3RamBattery,
-    MBC5,
-    Mbc5Ram,
-    Mbc5RamBattery,
-    Mbc5Rumble,
-    Mbc5RumbleRam,
-    Mbc5RumbleRamBattery,
-    MBC6,
-    Mbc7SensorRumbleRamBattery,
-    PocketCamera,
-    BandaiTama5,
-    HuC3,
-    HuC1RamBattery,
-}
+// pub enum MbcType {
+//     RomOnly,
+//     MBC1,
+//     Mbc1Ram,
+//     Mbc1RamBattery,
+//     MBC2,
+//     Mbc2Battery,
+//     RomRam,
+//     RomRamBattery,
+//     MMM01,
+//     Mmm01Ram,
+//     Mmm01RamBattery,
+//     Mbc3TimerBattery,
+//     Mbc3TimerRamBattery,
+//     MBC3,
+//     Mbc3Ram,
+//     Mbc3RamBattery,
+//     MBC5,
+//     Mbc5Ram,
+//     Mbc5RamBattery,
+//     Mbc5Rumble,
+//     Mbc5RumbleRam,
+//     Mbc5RumbleRamBattery,
+//     MBC6,
+//     Mbc7SensorRumbleRamBattery,
+//     PocketCamera,
+//     BandaiTama5,
+//     HuC3,
+//     HuC1RamBattery,
+// }
 
 pub struct Cartridge {
-    rom_size: u32,
-
     rom: Vec<u8>, // for the data in the GAME ROM
     ram: Vec<u8>, // EXTERNAL ram, to be used for stuff like save files
-
-    // mbc stuff
-    mbc_type: MbcType, // this dictates the TYPE of MBC that's on the cartridge. Necessary for
-    // allocating memory accordingly
-
-    // holds which bank is currently active
-    // active justmeans mapped to the 0x4000 - 0x7FFF
-    // which is 2nd half of the memory address
-    // INFO: referenced here for future me https://gbdev.io/pandocs/Memory_Map.html
-    rom_bank: usize, //defaults to 1
-
-    // This one is like the previous one, except ie holds which RAM bank is mapped to 0xA000 - 0xBFFF
-    // This value is dictated by the Game ROM that's loaded in, not dynamic at all.
-    ram_bank: usize, // defaults to 0
-
-    // Cartridge RAM is enabled by the game, before use
-    ram_enabled: bool,
+    mbc: Box<dyn MbcTrait>,
 }
 
 impl Cartridge {
     pub fn new(data: Vec<u8>) -> Self {
         let mbc_byte = data[0x0147];
-        let mbc_type = match mbc_byte {
-            0x00 => MbcType::RomOnly,
-            0x01 => MbcType::MBC1,
-            0x02 => MbcType::Mbc1Ram,
-            0x03 => MbcType::Mbc1RamBattery,
-            0x05 => MbcType::MBC2,
-            0x06 => MbcType::Mbc2Battery,
-            0x08 => MbcType::RomRam,
-            0x09 => MbcType::RomRamBattery,
-            0x0B => MbcType::MMM01,
-            0x0C => MbcType::Mmm01Ram,
-            0x0D => MbcType::Mmm01RamBattery,
-            0x0F => MbcType::Mbc3TimerBattery,
-            0x10 => MbcType::Mbc3TimerRamBattery,
-            0x11 => MbcType::MBC3,
-            0x12 => MbcType::Mbc3Ram,
-            0x13 => MbcType::Mbc3RamBattery,
-            0x19 => MbcType::MBC5,
-            0x1A => MbcType::Mbc5Ram,
-            0x1B => MbcType::Mbc5RamBattery,
-            0x1C => MbcType::Mbc5Rumble,
-            0x1D => MbcType::Mbc5RumbleRam,
-            0x1E => MbcType::Mbc5RumbleRamBattery,
-            0x20 => MbcType::MBC6,
-            0x22 => MbcType::Mbc7SensorRumbleRamBattery,
-            0xFC => MbcType::PocketCamera,
-            0xFD => MbcType::BandaiTama5,
-            0xFE => MbcType::HuC3,
-            0xFF => MbcType::HuC1RamBattery,
+        let mbc: Box<dyn MbcTrait> = match mbc_byte {
+            // 0x00 => MbcType::RomOnly,
+            0x00 => Box::new(mbcs::RomOnly::new()),
+            // 0x01 => MbcType::MBC1,
+            // 0x02 => MbcType::Mbc1Ram,
+            0x01..=0x02 => Box::new(mbcs::Mbc1::new()),
 
+            // TODO: Implement the rest of the variants
+            // 0x03 => MbcType::Mbc1RamBattery,
+            // 0x05 => MbcType::MBC2,
+            // 0x06 => MbcType::Mbc2Battery,
+            // 0x08 => MbcType::RomRam,
+            // 0x09 => MbcType::RomRamBattery,
+            // 0x0B => MbcType::MMM01,
+            // 0x0C => MbcType::Mmm01Ram,
+            // 0x0D => MbcType::Mmm01RamBattery,
+            // 0x0F => MbcType::Mbc3TimerBattery,
+            // 0x10 => MbcType::Mbc3TimerRamBattery,
+            // 0x11 => MbcType::MBC3,
+            // 0x12 => MbcType::Mbc3Ram,
+            // 0x13 => MbcType::Mbc3RamBattery,
+            // 0x19 => MbcType::MBC5,
+            // 0x1A => MbcType::Mbc5Ram,
+            // 0x1B => MbcType::Mbc5RamBattery,
+            // 0x1C => MbcType::Mbc5Rumble,
+            // 0x1D => MbcType::Mbc5RumbleRam,
+            // 0x1E => MbcType::Mbc5RumbleRamBattery,
+            // 0x20 => MbcType::MBC6,
+            // 0x22 => MbcType::Mbc7SensorRumbleRamBattery,
+            // 0xFC => MbcType::PocketCamera,
+            // 0xFD => MbcType::BandaiTama5,
+            // 0xFE => MbcType::HuC3,
+            // 0xFF => MbcType::HuC1RamBattery,
             _ => panic!(
                 "Unknown cartridge! idk what you tryna load at {:#04X}",
                 mbc_byte
@@ -122,42 +111,19 @@ impl Cartridge {
             }
         };
 
+        // TODO: Handle this edge case when writing the MBC2 struct
         // EXCEPTION!! MBC2 variants are special.
-        match mbc_type {
-            MbcType::MBC2 | MbcType::Mbc2Battery => {
-                ram_size = 512;
-            }
-            _ => {} // do nothing since mbc2 is the odd one out really
-        };
+        // match mbc_type {
+        //     MbcType::MBC2 | MbcType::Mbc2Battery => {
+        //         ram_size = 512;
+        //     }
+        //     _ => {} // do nothing since mbc2 is the odd one out really
+        // };
 
         Self {
-            rom_size: rom_size,
             rom: data,                    // put it there as is, cause why not
             ram: vec![0 as u8; ram_size], // initialize preallocated, with zeroes
-            mbc_type: mbc_type,
-            rom_bank: 1, // start with bank 1, the default one
-            ram_bank: 0,
-            ram_enabled: false,
-        }
-    }
-
-    fn get_mapped_rom_bank(&self) -> usize {
-        match self.mbc_type {
-            MbcType::RomOnly => 0,
-            MbcType::MBC1 | MbcType::Mbc1Ram | MbcType::Mbc1RamBattery => {
-                if self.rom_bank == 0 {
-                    1
-                } else {
-                    self.rom_bank
-                }
-            }
-            _ => {
-                // JUST temporary default behaviour to get the emulator
-                // to a core boot stage
-                // TODO: Actually implement most of the MBC types so this
-                // is usable.
-                self.rom_bank
-            }
+            mbc: mbc,
         }
     }
 }
@@ -169,68 +135,38 @@ impl Memory for Cartridge {
         // doesn't HAVE to know about what mountains are being moved
         // to get the data from the cartridge.
         match addr {
-            // NOW this is where it gets interesting?
-            // 0x0103 - 0x0133 stores the actual nintendo logo, which is funny because any
-            // unauthorized games would have to violate a trademark to ilegally make a game for the
-            // nintendo GameBoyColor
-
-            // Reading from the cartridge RAM (SWAPPABLE)
+            0x0000..=0x7FFF => {
+                let resolved_addr = self.mbc.map_rom_addr(addr);
+                // This gives us a basic bounds check, returns 0xFF if it is out of
+                // bounds, instead of panicking on malformed roms
+                self.rom.get(resolved_addr).cloned().unwrap_or(0xFF)
+            }
             0xA000..=0xBFFF => {
-                if !self.ram_enabled || self.ram.is_empty() {
-                    return 0xFF;
+                if let Some(resolved_addr) = self.mbc.map_ram_addr(addr) {
+                    self.ram.get(resolved_addr).cloned().unwrap_or(0xFF)
+                } else {
+                    0xFF
                 }
-
-                // Handling RAM, if it's available.
-                let normalized_addr = (addr - 0xA000) as usize;
-                let bank_size = 8192_usize; // 8kb
-                let bank_offset = (self.ram_bank * bank_size) as usize;
-
-                let resolved_addr = ((normalized_addr + bank_offset) % self.ram.len()) as usize;
-
-                self.ram[resolved_addr]
             }
-
-            // the addr is in the FIRST bank (BANK ZERO)
-            0x0000..=0x3FFF => self.rom[addr as usize],
-
-            // Reading from the swappable ROM (bank 1 and beyond)
-            0x4000..=0x7FFF => {
-                let bank = self.get_mapped_rom_bank();
-                // let offset = (bank * 1024 * 16);
-                // 16kb offset times the bank number
-                let bank_offset = bank * 0x4000;
-                let bank_offset = bank_offset as usize;
-                // The trick here is to convert the addr
-                // WHICH comes from the CPU, that is simply thinking
-                // in 16bit addresses, of which, this branch will only get
-                // the 16384 addresses, that lie between (incl) 0x4000 and 0x7FFF
-                // Now, that addr needs to be converted into a simple 0 to N
-                // based number, which is then used as the offset.
-                let normalized_addr = addr - 0x4000;
-                let normalized_addr = normalized_addr as usize;
-
-                // The above trick exploits the fact that 0x4000 is precisely
-                // the start of the address range this match statement hooks
-                // into. WHICH provides a nice 0 to N number to map to ANY
-                // bank, assuming I get the bank_offset calculation right
-
-                self.rom[normalized_addr + bank_offset]
-            }
-
-            _ => todo!(),
+            _ => 0xFF,
         }
     }
 
-    fn write(&self, addr: u16, value: u8) {
+    fn write(&mut self, addr: u16, val: u8) {
         // This is where the swap happens. If the cpu attempts to write to a particular register,
         // it will automatically swap the active bank.
         match addr {
             // No writes allowed here, strictly read only memory, it's the cartridge ROM
             // afterall
-            0x0000..=0x7FFF => {}
+            0x0000..=0x7FFF => self.mbc.write_rom(addr, val),
             // THIS is the range that can be written to, since it's the cartridge RAM.
             0xA000..=0xBFFF => {
-                // TODO:
+                let ram_length = self.ram.len();
+                if let Some(resolved_addr) = self.mbc.map_ram_addr(addr) {
+                    // i saw people recommend doing a wrap around
+                    // so, wrapping around by the ram length
+                    self.ram[resolved_addr % ram_length] = val;
+                }
             }
             _ => panic!("NOT SURE what to here"),
         }
