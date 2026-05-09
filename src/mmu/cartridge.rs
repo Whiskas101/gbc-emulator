@@ -1,5 +1,4 @@
 use crate::utils::Memory;
-
 // BUILT WITH THIS AS THE REFERENCE: https://gbdev.io/pandocs/The_Cartridge_Header.html
 
 pub enum MbcType {
@@ -201,11 +200,10 @@ impl Memory for Cartridge {
                 // 16kb offset times the bank number
                 let bank_offset = bank * 0x4000;
                 let bank_offset = bank_offset as usize;
-
                 // The trick here is to convert the addr
                 // WHICH comes from the CPU, that is simply thinking
-                // in 32bit addresses, of which, this branch will only get
-                // the LATTER 16 kb address space.
+                // in 16bit addresses, of which, this branch will only get
+                // the 16384 addresses, that lie between (incl) 0x4000 and 0x7FFF
                 // Now, that addr needs to be converted into a simple 0 to N
                 // based number, which is then used as the offset.
                 let normalized_addr = addr - 0x4000;
@@ -222,8 +220,19 @@ impl Memory for Cartridge {
             _ => todo!(),
         }
     }
+
     fn write(&self, addr: u16, value: u8) {
-        // TODO:
-        todo!()
+        // This is where the swap happens. If the cpu attempts to write to a particular register,
+        // it will automatically swap the active bank.
+        match addr {
+            // No writes allowed here, strictly read only memory, it's the cartridge ROM
+            // afterall
+            0x0000..=0x7FFF => {}
+            // THIS is the range that can be written to, since it's the cartridge RAM.
+            0xA000..=0xBFFF => {
+                // TODO:
+            }
+            _ => panic!("NOT SURE what to here"),
+        }
     }
 }
