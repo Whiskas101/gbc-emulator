@@ -8,7 +8,7 @@ impl Memory for Io {
         0x00
     }
 
-    fn write(&self, addr: u16, value: u8) {
+    fn write(&mut self, addr: u16, value: u8) {
         // TODO:
         println!("Writing!: {:?}", value);
     }

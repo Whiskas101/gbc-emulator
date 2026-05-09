@@ -7,7 +7,7 @@ impl Memory for Wram {
         // TODO:
         0x00
     }
-    fn write(&self, addr: u16, value: u8) {
+    fn write(&mut self, addr: u16, value: u8) {
         // TODO:
     }
 }

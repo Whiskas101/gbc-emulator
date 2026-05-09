@@ -63,7 +63,7 @@ impl Bus {
         }
     }
 
-    pub fn write(&self, addr: u16, val: u8) {
+    pub fn write(&mut self, addr: u16, val: u8) {
         match addr {
             // Cartridge ROM (fixed)
             0x0000..=0x7FFF => {
