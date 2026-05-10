@@ -303,17 +303,135 @@ impl GameBoyCPU {
         val
     }
 
-    fn execute_step(&mut self, inst: Instruction, step: u8, bus: &mut bus::Bus) {
-        match inst {
-            Instruction::Ld(reg8, reg9) => todo!(),
-            Instruction::LdImm(reg8) => todo!(),
-            Instruction::Ld16Imm(reg16) => todo!(),
-            Instruction::LdHlInd(reg8) => todo!(),
-            Instruction::LdHlIndImm => todo!(),
-            Instruction::LdRegHlInd(reg8) => todo!(),
-            Instruction::LdReg16IndA(reg16) => todo!(),
-            Instruction::LdImmIndA => todo!(),
-            Instruction::LdhImm8IndA => todo!(),
+    fn execute_step(&mut self, instr: Instruction, step: u8, bus: &mut bus::Bus) {
+        match instr {
+            Instruction::Ld(dest, src) => {
+                let val = self.regs.read8(src);
+                self.regs.write8(dest, val);
+                self.state = CpuState::FetchOpCode;
+            }
+
+            Instruction::LdImm(reg8) => {
+                let n8 = self.fetch_advance_pc(bus);
+
+                self.regs.write8(reg8, n8); // since it's an internal write
+                // no need to actually break this out into the execution cpu state
+                self.state = CpuState::FetchOpCode;
+            }
+
+            Instruction::Ld16Imm(reg16) => match step {
+                0 => {
+                    self.temp_val = self.fetch_advance_pc(bus) as u16; // m cycle cost
+                    self.state = CpuState::Executing {
+                        instr: instr,
+                        step: 1,
+                    }
+                }
+                1 => {
+                    let low = self.temp_val as u16;
+                    let high = self.fetch_advance_pc(bus) as u16; // m cycle cost
+                    let n16 = (high << 8) | low;
+
+                    self.regs.write16(reg16, n16);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Ld16Imm"),
+            },
+
+            Instruction::LdHlInd(reg8) => match step {
+                0 => {
+                    let dest_arr = self.regs.read16(Reg16::HL);
+                    let data = self.regs.read8(reg8);
+
+                    bus.write(dest_arr, data);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdHlInd"),
+            },
+            Instruction::LdHlIndImm => match step {
+                0 => {
+                    let n8 = self.fetch_advance_pc(bus); //costs a M cycle
+                    self.temp_val = n8 as u16;
+                    self.state = CpuState::Executing { instr, step: 1 }
+                }
+                1 => {
+                    let dest_addr = self.regs.read16(Reg16::HL);
+                    bus.write(dest_addr, self.temp_val as u8);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdHlIndImm"),
+            },
+            Instruction::LdRegHlInd(reg8) => match step {
+                0 => {
+                    // get the value pointed to by HL and put it into r8
+                    let addr = self.regs.read16(Reg16::HL);
+                    let val = bus.read(addr); // one m cycle to read
+                    self.regs.write8(reg8, val);
+
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdRegHlInd"),
+            },
+            Instruction::LdReg16IndA(reg16) => match step {
+                0 => {
+                    let dest_addr = self.regs.read16(reg16);
+                    let val = self.regs.read8(Reg8::A);
+                    bus.write(dest_addr, val);
+
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdReg16IndA"),
+            },
+            Instruction::LdImmIndA => match step {
+                0 => {
+                    // need to resolve the memory location n16 first
+                    // starting with first lower 8 bit
+                    let low = self.fetch_advance_pc(bus);
+                    self.temp_val = low as u16;
+                    self.state = CpuState::Executing { instr, step: 1 }
+                }
+                1 => {
+                    let high = self.fetch_advance_pc(bus);
+                    self.temp_val |= (high as u16) << 8;
+
+                    self.state = CpuState::Executing { instr, step: 2 }
+                }
+                2 => {
+                    // FINALLY have the full addr in temp_val
+                    // safe to write
+                    let val = self.regs.read8(Reg8::A);
+                    bus.write(self.temp_val, val);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid Step for LdImmIndA"),
+            },
+            Instruction::LdhImm8IndA => match step {
+                // THIS is special in that even though it's going to write
+                // a u8, it assumes a high byte of 0xFF
+                // Bringing the actual write as a value between
+                // 0xFF00 to 0xFFFF
+                // INFO: Apparently this instruction and it's family
+                // The LDH (H being the suffix for HRAM)
+                // Was built for talking to the HRAM, because typical LD
+                // was too slow.
+                0 => {
+                    // resolve the addr
+                    let dest = self.fetch_advance_pc(bus);
+                    // we don't care about figuring out the "high" half,
+                    // we just attach the 0xFF00 to the fetched n8
+                    self.temp_val = 0xFF00 | (dest as u16); // becomes a n16, with
+                    // prepended value
+
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    // write op consuming another cycle
+                    let val = self.regs.read8(Reg8::A);
+                    bus.write(self.temp_val, val);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid Step for LdhImm8IndA"),
+            },
             Instruction::LdhCIndA => todo!(),
             Instruction::LdAReg16Ind(reg16) => todo!(),
             Instruction::LdAImm16Ind => todo!(),
