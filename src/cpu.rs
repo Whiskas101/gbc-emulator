@@ -169,7 +169,7 @@ pub struct GameBoyCPU {
     // Where it all begins! (kinda)
     pub state: CpuState,
     regs: Regs,
-    temp_val: u8,
+    temp_val: u16,
 }
 
 pub struct Regs {
