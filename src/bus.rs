@@ -20,16 +20,9 @@ pub struct Bus {
 }
 
 impl Bus {
-    // pub fn new(rom: Vec<u8>) -> Self {
-    //     // TODO: lots of stuff to do
-    //     Self {
-    //
-    //     }
-    // }
-
     pub fn read(&self, addr: u16) -> u8 {
         match addr {
-            // Cartridge ROM (fixed)
+            // Cartridge ROM
             0x0000..=0x7FFF => self.cartridge.read(addr),
             0x8000..=0x9FFF => self.vram.read(addr),
 
@@ -38,7 +31,7 @@ impl Bus {
             0xA000..=0xBFFF => self.cartridge.read(addr),
 
             //
-            0xC000..=0xCFFF => self.wram.read(addr),
+            0xC000..=0xDFFF => self.wram.read(addr),
 
             // ECHO RAM
             0xE000..=0xFDFF => self.wram.read(addr - 0x2000),
@@ -65,7 +58,7 @@ impl Bus {
 
     pub fn write(&mut self, addr: u16, val: u8) {
         match addr {
-            // Cartridge ROM (fixed)
+            // Cartridge ROM
             0x0000..=0x7FFF => {
                 //something
                 self.cartridge.write(addr, val)
@@ -73,7 +66,7 @@ impl Bus {
             0x8000..=0x9FFF => self.vram.write(addr, val),
             0xA000..=0xBFFF => self.cartridge.write(addr, val),
 
-            0xC000..=0xCFFF => self.wram.write(addr, val),
+            0xC000..=0xDFFF => self.wram.write(addr, val),
             // ECHO RAM?!??!
             0xE000..=0xFDFF => self.wram.write(addr - 0x2000, val),
 
