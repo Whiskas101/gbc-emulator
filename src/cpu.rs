@@ -152,8 +152,10 @@ pub enum Instruction {
 pub enum CpuState {
     // ready to read the next inst
     FetchOpCode,
+    FetchCbOpCode,
 
     Decode { opcode: u8 },
+    DecodeCb { cb_opcode: u8 },
 
     // executing an instruction, and what step within that instruction it is at
     // currently
@@ -204,6 +206,14 @@ impl Regs {
 
             pc: 0,
             sp: 0,
+        }
+    }
+
+    pub fn set_flag(&mut self, flag_mask: u8, set: bool) {
+        if set {
+            self.f |= flag_mask;
+        } else {
+            self.f &= !flag_mask;
         }
     }
 
@@ -293,7 +303,88 @@ impl GameBoyCPU {
         val
     }
 
-    fn tick() {
+    fn execute_step(&mut self, inst: Instruction, step: u8, bus: &mut bus::Bus) {
+        match inst {
+            Instruction::Ld(reg8, reg9) => todo!(),
+            Instruction::LdImm(reg8) => todo!(),
+            Instruction::Ld16Imm(reg16) => todo!(),
+            Instruction::LdHlInd(reg8) => todo!(),
+            Instruction::LdHlIndImm => todo!(),
+            Instruction::LdRegHlInd(reg8) => todo!(),
+            Instruction::LdReg16IndA(reg16) => todo!(),
+            Instruction::LdImmIndA => todo!(),
+            Instruction::LdhImm8IndA => todo!(),
+            Instruction::LdhCIndA => todo!(),
+            Instruction::LdAReg16Ind(reg16) => todo!(),
+            Instruction::LdAImm16Ind => todo!(),
+            Instruction::LdhAImm8Ind => todo!(),
+            Instruction::LdhACInd => todo!(),
+            Instruction::LdHliA => todo!(),
+            Instruction::LdHldA => todo!(),
+            Instruction::LdAhli => todo!(),
+            Instruction::LdAHld => todo!(),
+            Instruction::Adc(operand8) => todo!(),
+            Instruction::AdcImm => todo!(),
+            Instruction::Add(operand8) => todo!(),
+            Instruction::AddImm => todo!(),
+            Instruction::Cp(operand8) => todo!(),
+            Instruction::CpImm => todo!(),
+            Instruction::Dec(operand8) => todo!(),
+            Instruction::Inc(operand8) => todo!(),
+            Instruction::Sbc(operand8) => todo!(),
+            Instruction::SbcImm => todo!(),
+            Instruction::Sub(operand8) => todo!(),
+            Instruction::SubImm => todo!(),
+            Instruction::Add16(reg16) => todo!(),
+            Instruction::Dec16(reg16) => todo!(),
+            Instruction::Inc16(reg16) => todo!(),
+            Instruction::And(operand8) => todo!(),
+            Instruction::AndImm => todo!(),
+            Instruction::Cpl => todo!(),
+            Instruction::Or(operand8) => todo!(),
+            Instruction::OrImm => todo!(),
+            Instruction::Xor(operand8) => todo!(),
+            Instruction::XorImm => todo!(),
+            Instruction::Bit(_, operand8) => todo!(),
+            Instruction::Res(_, operand8) => todo!(),
+            Instruction::Set(_, operand8) => todo!(),
+            Instruction::Rl(operand8) => todo!(),
+            Instruction::RlA => todo!(),
+            Instruction::Rlc(operand8) => todo!(),
+            Instruction::RlcA => todo!(),
+            Instruction::Rr(operand8) => todo!(),
+            Instruction::RrA => todo!(),
+            Instruction::Rrc(operand8) => todo!(),
+            Instruction::RrcA => todo!(),
+            Instruction::Sla(operand8) => todo!(),
+            Instruction::Sra(operand8) => todo!(),
+            Instruction::Srl(operand8) => todo!(),
+            Instruction::Swap(operand8) => todo!(),
+            Instruction::Call(cond) => todo!(),
+            Instruction::JpHl => todo!(),
+            Instruction::Jp(cond) => todo!(),
+            Instruction::Jr(cond) => todo!(),
+            Instruction::Ret(cond) => todo!(),
+            Instruction::Reti => todo!(),
+            Instruction::Rst(_) => todo!(),
+            Instruction::Ccf => todo!(),
+            Instruction::Scf => todo!(),
+            Instruction::AddSpImm => todo!(),
+            Instruction::LdImm16Sp => todo!(),
+            Instruction::LdHlSpImm => todo!(),
+            Instruction::LdSpHl => todo!(),
+            Instruction::Pop(reg16) => todo!(),
+            Instruction::Push(reg16) => todo!(),
+            Instruction::Di => todo!(),
+            Instruction::Ei => todo!(),
+            Instruction::Halt => todo!(),
+            Instruction::Daa => todo!(),
+            Instruction::Nop => todo!(),
+            Instruction::Stop => todo!(),
+        }
+    }
+
+    fn tick(&mut self, bus: &mut bus::Bus) {
         // Fetch
 
         // Decode
