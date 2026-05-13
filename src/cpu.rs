@@ -459,7 +459,26 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid Step for LdAReg16Ind"),
             },
-            Instruction::LdAImm16Ind => todo!(),
+            Instruction::LdAImm16Ind => match step {
+                0 => {
+                    // read the data by advancing the program counter
+                    // since it's a 16 bit value
+                    // will have to do this twice across two steps
+
+                    self.temp_val = self.fetch_advance_pc(bus) as u16;
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    self.temp_val = self.temp_val | (self.fetch_advance_pc(bus) as u16) << 8;
+                    self.state = CpuState::Executing { instr, step: 2 };
+                }
+                2 => {
+                    let val = bus.read(self.temp_val);
+                    self.regs.write8(Reg8::A, val);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid Step for LdAImm16Ind"),
+            },
             Instruction::LdhAImm8Ind => todo!(),
             Instruction::LdhACInd => todo!(),
             Instruction::LdHliA => todo!(),
