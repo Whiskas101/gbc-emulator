@@ -242,6 +242,7 @@ impl Regs {
     }
 
     pub fn read16(&self, reg: Reg16) -> u16 {
+        // reads the data from two registers as one 16bit value
         match reg {
             Reg16::AF => (self.a as u16) << 8 | self.f as u16,
             Reg16::BC => (self.b as u16) << 8 | self.c as u16,
@@ -432,8 +433,32 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid Step for LdhImm8IndA"),
             },
-            Instruction::LdhCIndA => todo!(),
-            Instruction::LdAReg16Ind(reg16) => todo!(),
+            Instruction::LdhCIndA => match step {
+                0 => {
+                    // A refers to the accumulator
+                    // assume it has "accumulated" the  value into register A already
+                    let val = self.regs.read8(Reg8::A); // cpu regs are zero cycle reads
+                    // get the addr from reg C, which is also free, cause it's on the cpu
+                    let target_addr = self.regs.read8(Reg8::C);
+                    let target_addr = (0xFF00) | (target_addr as u16);
+                    bus.write(target_addr, val);
+
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid Step for LdhCIndA"),
+            },
+            Instruction::LdAReg16Ind(reg16) => match step {
+                0 => {
+                    // load into A, the data pointed to by the addr in
+                    // the given reg
+                    let addr = self.regs.read16(reg16);
+                    let val = bus.read(addr);
+
+                    self.regs.write8(Reg8::A, val);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid Step for LdAReg16Ind"),
+            },
             Instruction::LdAImm16Ind => todo!(),
             Instruction::LdhAImm8Ind => todo!(),
             Instruction::LdhACInd => todo!(),
