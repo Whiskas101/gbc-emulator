@@ -51,8 +51,6 @@ impl Bus {
             0xFF80..=0xFFFE => self.hram.read(addr),
 
             0xFFFF..=0xFFFF => self.io.read(addr), // FOR HANDLING INTERRUPTS
-
-            _ => panic!("something went wrong!"),
         }
     }
 
