@@ -1,9 +1,15 @@
 #![allow(non_snake_case)]
+use core::panic;
+
 use crate::bus;
-pub const Z_FLAG: u8 = 0x80;
-pub const N_FLAG: u8 = 0x40;
-pub const H_FLAG: u8 = 0x20;
-pub const C_FLAG: u8 = 0x10;
+
+pub struct Flag;
+impl Flag {
+    pub const Z: u8 = 0x80;
+    pub const N: u8 = 0x40;
+    pub const H: u8 = 0x20;
+    pub const C: u8 = 0x10;
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Reg8 {
@@ -215,6 +221,17 @@ impl Regs {
         } else {
             self.f &= !flag_mask;
         }
+    }
+
+    pub fn get_flag(&mut self, flag_mask: u8) -> bool {
+        (self.f & flag_mask) != 0
+    }
+
+    pub fn update_flags(&mut self, z: bool, n: bool, h: bool, c: bool) {
+        self.set_flag(Flag::Z, z);
+        self.set_flag(Flag::N, n);
+        self.set_flag(Flag::H, h);
+        self.set_flag(Flag::C, c);
     }
 
     pub fn read8(&self, reg: Reg8) -> u8 {
