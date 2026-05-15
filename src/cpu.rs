@@ -524,9 +524,54 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for LdHliA"),
             },
-            Instruction::LdHldA => todo!(),
-            Instruction::LdAhli => todo!(),
-            Instruction::LdAHld => todo!(),
+            Instruction::LdHldA => match step {
+                // copy the data in reg A to the byte pointed to by HL
+                // and then decrement it
+                0 => {
+                    let val = self.regs.read8(Reg8::A);
+
+                    let target_addr = self.regs.read16(Reg16::HL);
+                    bus.write(target_addr, val);
+
+                    // increment the actual update
+                    self.regs.write16(Reg16::HL, target_addr.wrapping_sub(1));
+
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdHldA"),
+            },
+            Instruction::LdAhli => match step {
+                // copying the byte pointed to by HL into reg A, then
+                // incrementing HL
+                0 => {
+                    // resolve the val
+                    let target_addr = self.regs.read16(Reg16::HL);
+                    let val = bus.read(target_addr);
+
+                    self.regs.write8(Reg8::A, val);
+
+                    // inc
+                    self.regs.write16(Reg16::HL, target_addr.wrapping_add(1));
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdAhli"),
+            },
+            Instruction::LdAHld => match step {
+                // copying the byte pointed to by HL into reg A, then
+                // incrementing HL
+                0 => {
+                    // resolve the val
+                    let target_addr = self.regs.read16(Reg16::HL);
+                    let val = bus.read(target_addr);
+
+                    self.regs.write8(Reg8::A, val);
+
+                    // inc
+                    self.regs.write16(Reg16::HL, target_addr.wrapping_sub(1));
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdAhld"),
+            },
             Instruction::Adc(operand8) => todo!(),
             Instruction::AdcImm => todo!(),
             Instruction::Add(operand8) => todo!(),
