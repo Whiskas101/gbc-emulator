@@ -479,9 +479,51 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid Step for LdAImm16Ind"),
             },
-            Instruction::LdhAImm8Ind => todo!(),
-            Instruction::LdhACInd => todo!(),
-            Instruction::LdHliA => todo!(),
+            Instruction::LdhAImm8Ind => match step {
+                0 => {
+                    // get the lower bits
+                    self.temp_val = self.fetch_advance_pc(bus) as u16;
+                    // ensure that the upper bits are ONES
+                    // That's what LDH is for.
+                    self.temp_val |= 0xFF00;
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    // load the data at that temp_val addr into A
+                    let val = bus.read(self.temp_val);
+                    self.regs.write8(Reg8::A, val);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdhAImm8Ind"),
+            },
+            Instruction::LdhACInd => match step {
+                0 => {
+                    // LDH Load high, so 0xFF00 high bits assumption
+                    // Load the lower bits addr data from C
+                    let addr = 0xFF00 | self.regs.read8(Reg8::C) as u16;
+                    let val = bus.read(addr);
+                    // Loading the temp val into the actual register
+                    self.regs.write8(Reg8::A, val);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdhACInd"),
+            },
+            Instruction::LdHliA => match step {
+                // copy the data in reg A to the byte pointed to by HL
+                // and then increment it
+                0 => {
+                    let val = self.regs.read8(Reg8::A);
+
+                    let target_addr = self.regs.read16(Reg16::HL);
+                    bus.write(target_addr, val);
+
+                    // increment the actual update
+                    self.regs.write16(Reg16::HL, target_addr.wrapping_add(1));
+
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdHliA"),
+            },
             Instruction::LdHldA => todo!(),
             Instruction::LdAhli => todo!(),
             Instruction::LdAHld => todo!(),
