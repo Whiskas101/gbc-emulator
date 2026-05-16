@@ -77,7 +77,7 @@ impl Bus {
             0xFF80..=0xFFFE => self.hram.write(addr, val),
             0xFFFF..=0xFFFF => self.io.write(addr, val),
 
-            _ => panic!("something went wrong!"),
+            _ => unreachable!(),
         }
     }
 }
