@@ -155,6 +155,10 @@ pub enum Instruction {
     Stop, // STOP
 }
 
+impl Instruction {
+    pub fn is_single_cycle(&self) -> bool {}
+}
+
 pub enum CpuState {
     // ready to read the next inst
     FetchOpCode,
@@ -589,7 +593,41 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for LdAhld"),
             },
-            Instruction::Adc(operand8) => todo!(),
+            Instruction::Adc(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        let A = self.regs.read8(Reg8::A) as u16;
+                        let r8 = self.regs.read8(reg8) as u16;
+                        let carry = if self.regs.get_flag(Flag::C) { 1 } else { 0 };
+                        let result = A + r8 + carry;
+
+                        // half carry check
+                        // essentially see if the sum of the LOWER
+                        // nibbles leads to a overflow within the 4 bits
+                        let h = (A & 0xF) + (r8 & 0xF) + carry > 0xF;
+
+                        let c = result > 0xFF; // bigeer than 8 bit number =
+                        // carry
+                        //
+
+                        // final result (we only cary about the last 8 bits)
+                        let result = (result & 0xFF) as u8;
+
+                        // accumulate that res in to A
+                        self.regs.write8(Reg8::A, result);
+
+                        self.regs.update_flags(result == 0, false, h, c);
+
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Adc"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {}
+                    1 => {}
+                    _ => panic!("Invalid step for Adc"),
+                },
+            },
             Instruction::AdcImm => todo!(),
             Instruction::Add(operand8) => todo!(),
             Instruction::AddImm => todo!(),
