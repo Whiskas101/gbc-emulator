@@ -44,6 +44,32 @@ impl GameBoyCPU {
         val
     }
 
+    fn alu_add(&mut self, val: u8, use_carry: bool) {
+        let a = self.regs.read8(Reg8::A) as u16;
+        let val16 = val as u16;
+        let carry = if use_carry && self.regs.get_flag(Flag::C) {
+            1
+        } else {
+            0
+        };
+
+        let result = a + val16 + carry;
+
+        let z = (result & 0xFF) == 0;
+        let n = false;
+        let h = ((a & 0xF) + (val16 & 0xF) + carry) > 0x0F;
+        let c = result > 0xFF;
+
+        self.regs.write8(Reg8::A, (result & 0xFF) as u8);
+        self.regs.update_flags(z, n, h, c);
+    }
+
+    fn alu_sub(&mut self, val: u8) {}
+    fn alu_cp(&mut self, val: u8) {}
+    fn alu_and(&mut self, val: u8) {}
+    fn alu_or(&mut self, val: u8) {}
+    fn alu_xor(&mut self, val: u8) {}
+
     fn execute_step(&mut self, instr: Instruction, step: u8, bus: &mut bus::Bus) {
         match instr {
             Instruction::Ld(dest, src) => {
