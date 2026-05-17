@@ -153,19 +153,31 @@ pub enum Instruction {
     Daa,  // DAA
     Nop,  // NOP
     Stop, // STOP
+
+    // The prefix for 0xCB
+    PrefixCb,
 }
 
 impl Instruction {
-    pub fn is_single_cycle(&self) -> bool {}
+    pub fn from_byte(opcode: u8) -> Self {
+        include!(concat!(env!("OUT_DIR"), "/decode_unprefixed.rs"))
+    }
+    pub fn from_cb_byte(opcode: u8) -> Self {
+        include!(concat!(env!("OUT_DIR"), "/decode_cbprefixed.rs"))
+    }
+
+    pub fn is_cb() {
+        todo!()
+    }
+    pub fn is_single_cycle(&self) -> bool {
+        todo!()
+    }
 }
 
 pub enum CpuState {
     // ready to read the next inst
     FetchOpCode,
     FetchCbOpCode,
-
-    Decode { opcode: u8 },
-    DecodeCb { cb_opcode: u8 },
 
     // executing an instruction, and what step within that instruction it is at
     // currently
@@ -606,9 +618,7 @@ impl GameBoyCPU {
                         // nibbles leads to a overflow within the 4 bits
                         let h = (A & 0xF) + (r8 & 0xF) + carry > 0xF;
 
-                        let c = result > 0xFF; // bigeer than 8 bit number =
-                        // carry
-                        //
+                        let c = result > 0xFF; // bigeer than 8 bit number = carry
 
                         // final result (we only cary about the last 8 bits)
                         let result = (result & 0xFF) as u8;
@@ -685,15 +695,31 @@ impl GameBoyCPU {
             Instruction::Daa => todo!(),
             Instruction::Nop => todo!(),
             Instruction::Stop => todo!(),
+
+            // This is meant to alter the state of the tick in someway
+            Instruction::PrefixCb => todo!(),
         }
     }
 
     fn tick(&mut self, bus: &mut bus::Bus) {
-        // Fetch
+        // THIS function is meant to advance the cpu by EXACTLY one M cycle
+        // I picked a cycle accurate (kinda) emulation, and it's taking its
+        // toll on me :sob:
+
+        // match self.state {
+        //     CpuState::FetchOpCode => {
+        //         // Fetch
+        //         let opcode = self.fetch_advance_pc(bus);
+        //         let inst = self.decode(opcode);
+        //     }
+        //     CpuState::FetchCbOpCode => todo!(),
+        //     CpuState::Executing { instr, step } => todo!(),
+        //     CpuState::Halted => todo!(),
+        // }
 
         // Decode
         // Execute
     }
 
-    fn execute(&mut self, opcode: u8, bus: &bus::Bus) {}
+    fn decode(&mut self, opcode: u8, bus: &bus::Bus) {}
 }
