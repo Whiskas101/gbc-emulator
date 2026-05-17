@@ -327,7 +327,7 @@ impl GameBoyCPU {
 
                         let c = result > 0xFF; // bigeer than 8 bit number = carry
 
-                        // final result (we only cary about the last 8 bits)
+                        // final result (we only care about the last 8 bits)
                         let result = (result & 0xFF) as u8;
 
                         // accumulate that res in to A
