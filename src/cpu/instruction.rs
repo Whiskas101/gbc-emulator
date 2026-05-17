@@ -136,6 +136,33 @@ impl Instruction {
     }
 
     pub fn is_single_cycle(&self) -> bool {
-        todo!()
+        match self {
+            Instruction::Nop
+            | Instruction::Di
+            | Instruction::Ei
+            | Instruction::Halt
+            | Instruction::Daa
+            | Instruction::Cpl
+            | Instruction::Scf
+            | Instruction::Ccf
+            | Instruction::RlcA
+            | Instruction::RrcA
+            | Instruction::RlA
+            | Instruction::RrA => true,
+            Instruction::Ld(_, _) => true,
+
+            Instruction::Add(Operand8::Reg(_))
+            | Instruction::Adc(Operand8::Reg(_))
+            | Instruction::Sub(Operand8::Reg(_))
+            | Instruction::Sbc(Operand8::Reg(_))
+            | Instruction::And(Operand8::Reg(_))
+            | Instruction::Xor(Operand8::Reg(_))
+            | Instruction::Or(Operand8::Reg(_))
+            | Instruction::Cp(Operand8::Reg(_))
+            | Instruction::Inc(Operand8::Reg(_))
+            | Instruction::Dec(Operand8::Reg(_)) => true,
+
+            _ => false,
+        }
     }
 }
