@@ -357,7 +357,8 @@ impl GameBoyCPU {
             Instruction::Sub(operand8) => todo!(),
             Instruction::SubImm => todo!(),
             Instruction::Add16(reg16) => todo!(),
-            Instruction::Dec16(reg16) => todo!(),
+            Instruction::Dec16(reg16) => todo!(), // these inc16 and dec16 take two
+            // cycles
             Instruction::Inc16(reg16) => todo!(),
             Instruction::And(operand8) => todo!(),
             Instruction::AndImm => todo!(),
@@ -413,19 +414,64 @@ impl GameBoyCPU {
         // I picked a cycle accurate (kinda) emulation, and it's taking its
         // toll on me :sob:
 
-        // match self.state {
-        //     CpuState::FetchOpCode => {
-        //         // Fetch
-        //         let opcode = self.fetch_advance_pc(bus);
-        //         let inst = self.decode(opcode);
-        //     }
-        //     CpuState::FetchCbOpCode => todo!(),
-        //     CpuState::Executing { instr, step } => todo!(),
-        //     CpuState::Halted => todo!(),
-        // }
+        match self.state {
+            CpuState::FetchOpCode => {
+                let opcode = self.fetch_advance_pc(bus);
+                let instr = Instruction::from_byte(opcode);
 
-        // Decode
-        // Execute
+                if matches!(instr, Instruction::PrefixCb) {
+                    // the instruction fetched needs special handling
+                    // it's the extended mode
+                    self.state = CpuState::FetchCbOpCode;
+                } else if instr.is_single_cycle() {
+                    // if the instruction is single cycle
+                    // like moving data from one cpu reg to another reg
+                    // it can be done "instantly", doesn't need the bus
+                    // or any other tertiary component. So, execute that here
+                    // without needing ANOTHER tick to switch to execution state.
+                    self.execute_step(instr, 0, bus);
+
+                    // kinda unnecessary to set the state to this,
+                    // since it never left that state, but for the sake of
+                    // mathematical completeness, i must.
+                    self.state = CpuState::FetchOpCode;
+                } else {
+                    // this is basically signaling a transition,
+                    // let the next tick trigger the actual
+                    // thing the instruction is meant to do
+                    self.state = CpuState::Executing { instr, step: 0 };
+                }
+            }
+            CpuState::FetchCbOpCode => {
+                // need to do 2 fetches for a cb instr. This is the second
+                // one, to really map it to a unique instruction
+                let cb_opcode = self.fetch_advance_pc(bus);
+                let instr = Instruction::from_cb_byte(cb_opcode);
+
+                if let Instruction::Bit(_, Operand8::HlInd)
+                | Instruction::Res(_, Operand8::HlInd)
+                | Instruction::Set(_, Operand8::HlInd)
+                | Instruction::Rlc(Operand8::HlInd)
+                | Instruction::Rrc(Operand8::HlInd)
+                | Instruction::Rl(Operand8::HlInd)
+                | Instruction::Rr(Operand8::HlInd)
+                | Instruction::Sla(Operand8::HlInd)
+                | Instruction::Sra(Operand8::HlInd)
+                | Instruction::Srl(Operand8::HlInd)
+                | Instruction::Swap(Operand8::HlInd) = instr
+                {
+                    self.state = CpuState::Executing { instr, step: 0 };
+                } else {
+                    self.execute_step(instr, 0, bus);
+                    self.state = CpuState::FetchOpCode;
+                }
+            }
+            CpuState::Executing { instr, step } => self.execute_step(instr, step, bus),
+            CpuState::Halted => {
+                // DO NOTHING, ofc
+                // Until an interrupt does some work
+            }
+        }
     }
 
     fn decode(&mut self, opcode: u8, bus: &bus::Bus) {}
