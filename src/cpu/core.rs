@@ -64,11 +64,65 @@ impl GameBoyCPU {
         self.regs.update_flags(z, n, h, c);
     }
 
-    fn alu_sub(&mut self, val: u8) {}
-    fn alu_cp(&mut self, val: u8) {}
-    fn alu_and(&mut self, val: u8) {}
-    fn alu_or(&mut self, val: u8) {}
-    fn alu_xor(&mut self, val: u8) {}
+    fn alu_sub(&mut self, val: u8, use_carry: bool) {
+        let a = self.regs.read8(Reg8::A);
+        let carry = if use_carry && self.regs.get_flag(Flag::C) {
+            1
+        } else {
+            0
+        };
+
+        let result = a.wrapping_sub(val).wrapping_sub(carry);
+        let z = result == 0;
+        let n = true; // cause it's a subtraction
+
+        // This ones a real confusing trick
+        // A - val - carry is equivalent to A - (val + carry) because mafs
+        // In that case, the only way an under flow can occur is if A is smaller than the RHS,
+        // (val + carry), which is exactly what the below flags use:
+        // A < val + carry = UNDERFLOW
+        let h = (a & 0x0F) < (val & 0x0F) + carry;
+        let c = (a as u16) < (val as u16) + (carry as u16);
+
+        self.regs.write8(Reg8::A, val);
+        self.regs.update_flags(z, n, h, c);
+    }
+
+    fn alu_cp(&mut self, val: u8) {
+        // identical to SUB, it just doesn't write the results to A
+        // fascinating stuff
+        let a = self.regs.read8(Reg8::A);
+        let result = a.wrapping_sub(val);
+
+        let z = result == 0;
+        let n = true;
+        let h = (a & 0x0F) < (val & 0x0F);
+        let c = a < val;
+
+        self.regs.write8(Reg8::A, val);
+        self.regs.update_flags(z, n, h, c);
+    }
+
+    fn alu_and(&mut self, val: u8) {
+        let result = self.regs.read8(Reg8::A) & val;
+        self.regs.write8(Reg8::A, val);
+        // and op always sets H to 1
+        self.regs.update_flags(result == 0, false, true, false);
+    }
+
+    fn alu_or(&mut self, val: u8) {
+        let result = self.regs.read8(Reg8::A) | val;
+        self.regs.write8(Reg8::A, val);
+        // and op always sets H to 1
+        self.regs.update_flags(result == 0, false, false, false);
+    }
+
+    fn alu_xor(&mut self, val: u8) {
+        let result = self.regs.read8(Reg8::A) ^ val;
+        self.regs.write8(Reg8::A, val);
+        // and op always sets H to 1
+        self.regs.update_flags(result == 0, false, true, false);
+    }
 
     fn execute_step(&mut self, instr: Instruction, step: u8, bus: &mut bus::Bus) {
         match instr {
