@@ -691,6 +691,8 @@ impl GameBoyCPU {
                     0 => {
                         let res = self.regs.read8(Reg8::A) & self.regs.read8(reg8);
                         self.regs.write8(Reg8::A, res);
+                        let z = res == 0;
+                        self.regs.update_flags(z, false, true, false);
                         self.state = CpuState::FetchOpCode;
                     }
                     _ => panic!("Invalid step for And"),
@@ -698,7 +700,10 @@ impl GameBoyCPU {
                 Operand8::HlInd => match step {
                     0 => {
                         let target_addr = self.regs.read16(Reg16::HL);
-                        let res = bus.read(target_addr) & self.regs.read8(Reg8::A);
+                        let val = bus.read(target_addr);
+                        let res = val & self.regs.read8(Reg8::A);
+                        let z = res == 0;
+                        self.regs.update_flags(z, false, true, false);
                         self.regs.write8(Reg8::A, res);
                         self.state = CpuState::FetchOpCode;
                     }
@@ -709,6 +714,8 @@ impl GameBoyCPU {
                 0 => {
                     let val = self.fetch_advance_pc(bus);
                     let res = self.regs.read8(Reg8::A) & val;
+                    let z = res == 0;
+                    self.regs.update_flags(z, false, true, false);
                     self.regs.write8(Reg8::A, res);
                     self.state = CpuState::FetchOpCode;
                 }
