@@ -534,10 +534,11 @@ impl GameBoyCPU {
             Instruction::Dec(operand8) => match operand8 {
                 Operand8::Reg(reg8) => match step {
                     0 => {
+                        let val = self.regs.read8(reg8);
                         let IncResult {
                             res,
                             flags: (z, n, h, c),
-                        } = self.inc8(reg8);
+                        } = self.dec8(val);
 
                         self.regs.write8(reg8, res);
                         self.regs.update_flags(z, n, h, c);
