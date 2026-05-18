@@ -18,6 +18,11 @@ pub enum CpuState {
     Halted,
 }
 
+struct IncResult {
+    res: u8,
+    flags: (bool, bool, bool, bool),
+}
+
 pub struct GameBoyCPU {
     // Where it all begins! (kinda)
     pub state: CpuState,
@@ -122,6 +127,53 @@ impl GameBoyCPU {
         self.regs.write8(Reg8::A, val);
         // and op always sets H to 1
         self.regs.update_flags(result == 0, false, true, false);
+    }
+
+    fn inc8(&mut self, reg: Reg8) -> IncResult {
+        // since it's the 8 bit variant it must handle the flags as well
+        let val = self.regs.read8(reg);
+        let result = val.wrapping_add(1);
+
+        let z = result == 0;
+        let n = false;
+        let h = (val & 0xF) + 1 > 0x0F;
+        let c = self.regs.get_flag(Flag::C); // no change to carry flag
+
+        // self.regs.write8(reg, result);
+        // self.regs.update_flags(z, n, h, c);
+        return IncResult {
+            res: result,
+            flags: (z, n, h, c),
+        };
+    }
+
+    fn inc16(&mut self, reg: Reg16) {
+        // way simpler, doesn't need to update ANY flags, (idk why)
+        let val = self.regs.read16(reg);
+        let val = val.wrapping_add(1);
+        self.regs.write16(reg, val);
+    }
+
+    fn dec8(&mut self, reg: Reg8) -> IncResult {
+        let val = self.regs.read8(reg);
+        let result = val.wrapping_sub(1);
+        self.regs.write8(reg, result);
+
+        let z = result == 0;
+        let n = true;
+        let h = (val & 0xF) < 1; // can only underflow if the current val is 0
+        let c = self.regs.get_flag(Flag::C); // no change to carry flag
+
+        return IncResult {
+            res: result,
+            flags: (z, n, h, c),
+        };
+    }
+    fn dec16(&mut self, reg: Reg16) {
+        // way simpler, doesn't need to update ANY flags, (idk why)
+        let val = self.regs.read16(reg);
+        let val = val.wrapping_sub(1);
+        self.regs.write16(reg, val);
     }
 
     fn execute_step(&mut self, instr: Instruction, step: u8, bus: &mut bus::Bus) {
@@ -395,42 +447,114 @@ impl GameBoyCPU {
             Instruction::Adc(operand8) => match operand8 {
                 Operand8::Reg(reg8) => match step {
                     0 => {
-                        let A = self.regs.read8(Reg8::A) as u16;
-                        let r8 = self.regs.read8(reg8) as u16;
-                        let carry = if self.regs.get_flag(Flag::C) { 1 } else { 0 };
-                        let result = A + r8 + carry;
-
-                        // half carry check
-                        // essentially see if the sum of the LOWER
-                        // nibbles leads to a overflow within the 4 bits
-                        let h = (A & 0xF) + (r8 & 0xF) + carry > 0xF;
-
-                        let c = result > 0xFF; // bigeer than 8 bit number = carry
-
-                        // final result (we only care about the last 8 bits)
-                        let result = (result & 0xFF) as u8;
-
-                        // accumulate that res in to A
-                        self.regs.write8(Reg8::A, result);
-
-                        self.regs.update_flags(result == 0, false, h, c);
-
+                        let r8 = self.regs.read8(reg8);
+                        self.alu_add(r8, true);
                         self.state = CpuState::FetchOpCode;
                     }
                     _ => panic!("Invalid step for Adc"),
                 },
                 Operand8::HlInd => match step {
-                    0 => {}
-                    1 => {}
+                    // add the byte pointed to by HL plus the carry flag to A
+                    // like how ADC A, r8 works
+                    0 => {
+                        // get the byte pointed to by HL
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.alu_add(val, true);
+                        self.state = CpuState::FetchOpCode;
+                    }
                     _ => panic!("Invalid step for Adc"),
                 },
             },
-            Instruction::AdcImm => todo!(),
-            Instruction::Add(operand8) => todo!(),
-            Instruction::AddImm => todo!(),
-            Instruction::Cp(operand8) => todo!(),
-            Instruction::CpImm => todo!(),
-            Instruction::Dec(operand8) => todo!(),
+            Instruction::AdcImm => match step {
+                // Add the value n8 PLUS the carry flag to A
+                0 => {
+                    let n8 = self.fetch_advance_pc(bus);
+                    self.alu_add(n8, true);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for AdcImm"),
+            },
+            Instruction::Add(operand8) => match operand8 {
+                Operand8::Reg(reg) => match step {
+                    0 => {
+                        let val = self.regs.read8(reg);
+                        self.alu_add(val, false);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Add"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        // resolve the value indicated by the address in HL
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.alu_add(val, false);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Add"),
+                },
+            },
+            Instruction::AddImm => match step {
+                0 => {
+                    // get n8
+                    let val = self.fetch_advance_pc(bus);
+                    self.alu_add(val, false);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for AddImm"),
+            },
+            Instruction::Cp(operand8) => match operand8 {
+                Operand8::Reg(reg) => match step {
+                    0 => {
+                        let val = self.regs.read8(reg);
+                        self.alu_cp(val);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Cp"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.alu_cp(val);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Cp"),
+                },
+            },
+            Instruction::CpImm => match step {
+                0 => {
+                    let val = self.fetch_advance_pc(bus);
+                    self.alu_cp(val);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for CpImm"),
+            },
+            Instruction::Dec(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        let IncResult {
+                            res,
+                            flags: (z, n, h, c),
+                        } = self.inc8(reg8);
+
+                        self.regs.write8(reg8, res);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Dec"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        // dec the byte pointed to by HL
+                        // TODO:
+                    }
+                    1 => {}
+                    2 => {}
+                    _ => panic!("Invalid step for Dec"),
+                },
+            },
             Instruction::Inc(operand8) => todo!(),
             Instruction::Sbc(operand8) => todo!(),
             Instruction::SbcImm => todo!(),
