@@ -129,9 +129,8 @@ impl GameBoyCPU {
         self.regs.update_flags(result == 0, false, true, false);
     }
 
-    fn inc8(&mut self, reg: Reg8) -> IncResult {
+    fn inc8(&mut self, val: u8) -> IncResult {
         // since it's the 8 bit variant it must handle the flags as well
-        let val = self.regs.read8(reg);
         let result = val.wrapping_add(1);
 
         let z = result == 0;
@@ -139,8 +138,6 @@ impl GameBoyCPU {
         let h = (val & 0xF) + 1 > 0x0F;
         let c = self.regs.get_flag(Flag::C); // no change to carry flag
 
-        // self.regs.write8(reg, result);
-        // self.regs.update_flags(z, n, h, c);
         return IncResult {
             res: result,
             flags: (z, n, h, c),
@@ -154,10 +151,8 @@ impl GameBoyCPU {
         self.regs.write16(reg, val);
     }
 
-    fn dec8(&mut self, reg: Reg8) -> IncResult {
-        let val = self.regs.read8(reg);
+    fn dec8(&mut self, val: u8) -> IncResult {
         let result = val.wrapping_sub(1);
-        self.regs.write8(reg, result);
 
         let z = result == 0;
         let n = true;
@@ -549,14 +544,66 @@ impl GameBoyCPU {
                 Operand8::HlInd => match step {
                     0 => {
                         // dec the byte pointed to by HL
-                        // TODO:
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        self.temp_val = bus.read(target_addr) as u16;
+                        self.state = CpuState::Executing { instr, step: 1 };
                     }
-                    1 => {}
-                    2 => {}
+                    1 => {
+                        // need to get this addr data again :sob:
+                        let target_addr = self.regs.read16(Reg16::HL);
+
+                        let val = self.temp_val;
+                        let IncResult {
+                            res,
+                            flags: (z, n, h, c),
+                        } = self.dec8(val as u8);
+
+                        bus.write(target_addr, res);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
                     _ => panic!("Invalid step for Dec"),
                 },
             },
-            Instruction::Inc(operand8) => todo!(),
+            Instruction::Inc(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        let val = self.regs.read8(reg8);
+                        let IncResult {
+                            res,
+                            flags: (z, n, h, c),
+                        } = self.inc8(val);
+
+                        self.regs.write8(reg8, res);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Inc"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.temp_val = val as u16;
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    }
+                    1 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+
+                        let val = self.temp_val;
+
+                        let IncResult {
+                            res,
+                            flags: (z, n, h, c),
+                        } = self.inc8(val as u8);
+
+                        bus.write(target_addr, res);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Inc"),
+                },
+            },
             Instruction::Sbc(operand8) => todo!(),
             Instruction::SbcImm => todo!(),
             Instruction::Sub(operand8) => todo!(),
