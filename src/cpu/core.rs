@@ -721,9 +721,55 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for AndImm"),
             },
-            Instruction::Cpl => todo!(),
-            Instruction::Or(operand8) => todo!(),
-            Instruction::OrImm => todo!(),
+            Instruction::Cpl => match step {
+                // this instruction is essentially a bitwise NOT
+                // complements the current value of the Reg::A
+                0 => {
+                    let val = self.regs.read8(Reg8::A);
+                    self.regs.write8(Reg8::A, !val);
+                    let z = self.regs.get_flag(Flag::Z);
+                    let c = self.regs.get_flag(Flag::C);
+                    self.regs.update_flags(z, true, true, c);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Cpl"),
+            },
+            Instruction::Or(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        let val = self.regs.read8(reg8);
+                        let res = val | self.regs.read8(Reg8::A);
+                        let z = res == 0;
+                        self.regs.write8(Reg8::A, res);
+                        self.regs.update_flags(z, false, false, false);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Or"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        let res = self.regs.read8(Reg8::A) | val;
+                        let z = res == 0;
+                        self.regs.write8(Reg8::A, res);
+                        self.regs.update_flags(z, false, false, false);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Or"),
+                },
+            },
+            Instruction::OrImm => match step {
+                0 => {
+                    let val = self.fetch_advance_pc(bus);
+                    let res = self.regs.read8(Reg8::A) | val;
+                    let z = res == 0;
+                    self.regs.write8(Reg8::A, res);
+                    self.regs.update_flags(z, false, false, false);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for OrImm"),
+            },
             Instruction::Xor(operand8) => todo!(),
             Instruction::XorImm => todo!(),
             Instruction::Bit(_, operand8) => todo!(),
