@@ -658,9 +658,46 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for SubImm"),
             },
-            Instruction::Add16(reg16) => todo!(),
-            Instruction::Dec16(reg16) => todo!(), // these inc16 and dec16 take two cycles
-            Instruction::Inc16(reg16) => todo!(),
+            Instruction::Add16(reg16) => match step {
+                0 => {
+                    // add the val in reg16 to HL
+                    let val = self.regs.read16(reg16);
+                    let hl_val = self.regs.read16(Reg16::HL);
+                    let (res, carry) = hl_val.overflowing_add(val);
+
+                    let z = self.regs.get_flag(Flag::Z);
+                    let n = false;
+                    let h = (val & 0xFFF) + (hl_val & 0xFFF) > 0xFFF;
+                    let c = carry;
+
+                    self.regs.write16(Reg16::HL, res);
+                    self.regs.update_flags(z, n, h, c);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Add16"),
+            },
+            Instruction::Dec16(reg16) => match step {
+                0 => {
+                    // decrement the value in r16 by 1
+                    let val = self.regs.read16(reg16);
+                    let res = val.wrapping_sub(1);
+
+                    self.regs.write16(reg16, res);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Dec16"),
+            }, // these inc16 and dec16 take two cycles
+            Instruction::Inc16(reg16) => match step {
+                0 => {
+                    // increment the value in r16 by 1
+                    let val = self.regs.read16(reg16);
+                    let res = val.wrapping_add(1);
+
+                    self.regs.write16(reg16, res);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Inc16"),
+            },
             Instruction::And(operand8) => todo!(),
             Instruction::AndImm => todo!(),
             Instruction::Cpl => todo!(),
