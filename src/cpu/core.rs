@@ -144,13 +144,6 @@ impl GameBoyCPU {
         };
     }
 
-    fn inc16(&mut self, reg: Reg16) {
-        // way simpler, doesn't need to update ANY flags, (idk why)
-        let val = self.regs.read16(reg);
-        let val = val.wrapping_add(1);
-        self.regs.write16(reg, val);
-    }
-
     fn dec8(&mut self, val: u8) -> IncResult {
         let result = val.wrapping_sub(1);
 
@@ -163,12 +156,6 @@ impl GameBoyCPU {
             res: result,
             flags: (z, n, h, c),
         };
-    }
-    fn dec16(&mut self, reg: Reg16) {
-        // way simpler, doesn't need to update ANY flags, (idk why)
-        let val = self.regs.read16(reg);
-        let val = val.wrapping_sub(1);
-        self.regs.write16(reg, val);
     }
 
     fn execute_step(&mut self, instr: Instruction, step: u8, bus: &mut bus::Bus) {
@@ -698,7 +685,10 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for Inc16"),
             },
-            Instruction::And(operand8) => todo!(),
+            Instruction::And(operand8) => match step {
+                0 => {}
+                _ => panic!("Invalid step for And"),
+            },
             Instruction::AndImm => todo!(),
             Instruction::Cpl => todo!(),
             Instruction::Or(operand8) => todo!(),
