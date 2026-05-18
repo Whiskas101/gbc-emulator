@@ -631,11 +631,35 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for SbcImm"),
             },
-            Instruction::Sub(operand8) => todo!(),
-            Instruction::SubImm => todo!(),
+            Instruction::Sub(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        let val = self.regs.read8(reg8);
+                        self.alu_sub(val, false);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Sub"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.alu_sub(val, false);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Sub"),
+                },
+            },
+            Instruction::SubImm => match step {
+                0 => {
+                    let n8 = self.fetch_advance_pc(bus);
+                    self.alu_sub(n8, false);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for SubImm"),
+            },
             Instruction::Add16(reg16) => todo!(),
-            Instruction::Dec16(reg16) => todo!(), // these inc16 and dec16 take two
-            // cycles
+            Instruction::Dec16(reg16) => todo!(), // these inc16 and dec16 take two cycles
             Instruction::Inc16(reg16) => todo!(),
             Instruction::And(operand8) => todo!(),
             Instruction::AndImm => todo!(),
