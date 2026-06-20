@@ -777,10 +777,122 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for XorImm"),
             },
-            Instruction::Bit(_, operand8) => todo!(),
-            Instruction::Res(_, operand8) => todo!(),
-            Instruction::Set(_, operand8) => todo!(),
-            Instruction::Rl(operand8) => todo!(),
+            Instruction::Bit(bit, operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        // Test bit u3
+                        // (bit var is a u8, but only will have u3 capacity)
+                        // from register r8
+                        let val = self.regs.read8(reg8);
+                        let mask = (1 as u8) << bit;
+
+                        // if the value remains the same after the and
+                        // the bit test result was 1
+                        let z = !((val & mask) == mask);
+                        let n = false;
+                        let h = true;
+                        let c = self.regs.get_flag(Flag::C); // keep as is
+
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Bit"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        let mask = (1 as u8) << bit;
+
+                        // if the value remains the same after the and
+                        // the bit test result was 1
+                        let z = (val & mask) == 0;
+                        let n = false;
+                        let h = true;
+                        let c = self.regs.get_flag(Flag::C); // keep as is
+
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Bit"),
+                },
+            },
+            Instruction::Res(bit, operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        let val = self.regs.read8(reg8);
+                        let mask = !((1 as u8) << bit);
+                        let result = val & mask;
+                        self.regs.write8(reg8, result);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Res"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.temp_val = val as u16;
+
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    }
+                    1 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+
+                        let val = self.temp_val as u8;
+                        let mask = !((1 as u8) << bit);
+                        let result = val & mask;
+
+                        bus.write(target_addr, result);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Res"),
+                },
+            },
+            Instruction::Set(bit, operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        let val = self.regs.read8(reg8);
+                        let mask = (1 as u8) << bit;
+                        let result = val | mask;
+                        self.regs.write8(reg8, result);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Set"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.temp_val = val as u16;
+
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    }
+                    1 => {
+                        let val = self.temp_val as u8;
+                        let target_addr = self.regs.read16(Reg16::HL);
+
+                        let mask = (1 as u8) << bit;
+                        let result = val | mask;
+                        bus.write(target_addr, result);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Set"),
+                },
+            },
+            Instruction::Rl(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        // rotate left, data in reg 8 through the carry bit as
+                        // the rightmost bit
+                    }
+                    _ => panic!("Invalid step for Rl"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {}
+                    _ => panic!("Invalid step for Rl"),
+                },
+            },
             Instruction::RlA => todo!(),
             Instruction::Rlc(operand8) => todo!(),
             Instruction::RlcA => todo!(),
