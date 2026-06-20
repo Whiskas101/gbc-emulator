@@ -6,5 +6,5 @@ mod utils;
 
 fn main() {
     println!("Hello, world!");
-    // let cpu = cpu::GameBoyCPU::new();
+    let cpu = cpu::GameBoyCPU::new();
 }
