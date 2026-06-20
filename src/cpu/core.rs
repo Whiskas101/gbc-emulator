@@ -1070,8 +1070,36 @@ impl GameBoyCPU {
                     _ => panic!("Invalid step for Rr"),
                 },
             },
-            Instruction::RrA => todo!(),
-            Instruction::Rrc(operand8) => todo!(),
+            Instruction::RrA => match step {
+                0 => {
+                    let A = self.regs.read8(Reg8::A);
+                    let carry = self.regs.get_flag(Flag::C);
+                    let carry_bit = if carry { 1 } else { 0 };
+                    let lsb = if (A & 1) == 1 { 1 } else { 0 };
+
+                    let rotated_A = (A >> 1) | (carry_bit << 7);
+
+                    let z = false;
+                    let n = false;
+                    let h = false;
+                    let c = lsb != 0;
+
+                    self.regs.write8(Reg8::A, rotated_A);
+                    self.regs.update_flags(z, n, h, c);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for RrA"),
+            },
+            Instruction::Rrc(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {}
+                    _ => panic!("Invalid step for Rrc"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {}
+                    _ => panic!("Invalid step for Rrc"),
+                },
+            },
             Instruction::RrcA => todo!(),
             Instruction::Sla(operand8) => todo!(),
             Instruction::Sra(operand8) => todo!(),
