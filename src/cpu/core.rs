@@ -89,7 +89,7 @@ impl GameBoyCPU {
         let h = (a & 0x0F) < (val & 0x0F) + carry;
         let c = (a as u16) < (val as u16) + (carry as u16);
 
-        self.regs.write8(Reg8::A, val);
+        self.regs.write8(Reg8::A, result);
         self.regs.update_flags(z, n, h, c);
     }
 
@@ -104,29 +104,26 @@ impl GameBoyCPU {
         let h = (a & 0x0F) < (val & 0x0F);
         let c = a < val;
 
-        self.regs.write8(Reg8::A, val);
         self.regs.update_flags(z, n, h, c);
     }
 
     fn alu_and(&mut self, val: u8) {
         let result = self.regs.read8(Reg8::A) & val;
-        self.regs.write8(Reg8::A, val);
+        self.regs.write8(Reg8::A, result);
         // and op always sets H to 1
         self.regs.update_flags(result == 0, false, true, false);
     }
 
     fn alu_or(&mut self, val: u8) {
         let result = self.regs.read8(Reg8::A) | val;
-        self.regs.write8(Reg8::A, val);
-        // and op always sets H to 1
+        self.regs.write8(Reg8::A, result);
         self.regs.update_flags(result == 0, false, false, false);
     }
 
     fn alu_xor(&mut self, val: u8) {
         let result = self.regs.read8(Reg8::A) ^ val;
-        self.regs.write8(Reg8::A, val);
-        // and op always sets H to 1
-        self.regs.update_flags(result == 0, false, true, false);
+        self.regs.write8(Reg8::A, result);
+        self.regs.update_flags(result == 0, false, false, false);
     }
 
     fn inc8(&mut self, val: u8) -> IncResult {
@@ -689,10 +686,8 @@ impl GameBoyCPU {
             Instruction::And(operand8) => match operand8 {
                 Operand8::Reg(reg8) => match step {
                     0 => {
-                        let res = self.regs.read8(Reg8::A) & self.regs.read8(reg8);
-                        self.regs.write8(Reg8::A, res);
-                        let z = res == 0;
-                        self.regs.update_flags(z, false, true, false);
+                        let val = self.regs.read8(reg8);
+                        self.alu_and(val);
                         self.state = CpuState::FetchOpCode;
                     }
                     _ => panic!("Invalid step for And"),
@@ -701,10 +696,7 @@ impl GameBoyCPU {
                     0 => {
                         let target_addr = self.regs.read16(Reg16::HL);
                         let val = bus.read(target_addr);
-                        let res = val & self.regs.read8(Reg8::A);
-                        let z = res == 0;
-                        self.regs.update_flags(z, false, true, false);
-                        self.regs.write8(Reg8::A, res);
+                        self.alu_and(val);
                         self.state = CpuState::FetchOpCode;
                     }
                     _ => panic!("Invalid step for And"),
@@ -713,10 +705,7 @@ impl GameBoyCPU {
             Instruction::AndImm => match step {
                 0 => {
                     let val = self.fetch_advance_pc(bus);
-                    let res = self.regs.read8(Reg8::A) & val;
-                    let z = res == 0;
-                    self.regs.update_flags(z, false, true, false);
-                    self.regs.write8(Reg8::A, res);
+                    self.alu_and(val);
                     self.state = CpuState::FetchOpCode;
                 }
                 _ => panic!("Invalid step for AndImm"),
@@ -738,10 +727,7 @@ impl GameBoyCPU {
                 Operand8::Reg(reg8) => match step {
                     0 => {
                         let val = self.regs.read8(reg8);
-                        let res = val | self.regs.read8(Reg8::A);
-                        let z = res == 0;
-                        self.regs.write8(Reg8::A, res);
-                        self.regs.update_flags(z, false, false, false);
+                        self.alu_or(val);
                         self.state = CpuState::FetchOpCode;
                     }
                     _ => panic!("Invalid step for Or"),
@@ -750,10 +736,7 @@ impl GameBoyCPU {
                     0 => {
                         let target_addr = self.regs.read16(Reg16::HL);
                         let val = bus.read(target_addr);
-                        let res = self.regs.read8(Reg8::A) | val;
-                        let z = res == 0;
-                        self.regs.write8(Reg8::A, res);
-                        self.regs.update_flags(z, false, false, false);
+                        self.alu_or(val);
                         self.state = CpuState::FetchOpCode;
                     }
                     _ => panic!("Invalid step for Or"),
@@ -762,16 +745,38 @@ impl GameBoyCPU {
             Instruction::OrImm => match step {
                 0 => {
                     let val = self.fetch_advance_pc(bus);
-                    let res = self.regs.read8(Reg8::A) | val;
-                    let z = res == 0;
-                    self.regs.write8(Reg8::A, res);
-                    self.regs.update_flags(z, false, false, false);
+                    self.alu_or(val);
                     self.state = CpuState::FetchOpCode;
                 }
                 _ => panic!("Invalid step for OrImm"),
             },
-            Instruction::Xor(operand8) => todo!(),
-            Instruction::XorImm => todo!(),
+            Instruction::Xor(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        let val = self.regs.read8(reg8);
+                        self.alu_xor(val);
+                        self.state = CpuState::FetchOpCode
+                    }
+                    _ => panic!("Invalid step for Xor"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.alu_xor(val);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Xor"),
+                },
+            },
+            Instruction::XorImm => match step {
+                0 => {
+                    let val = self.fetch_advance_pc(bus);
+                    self.alu_xor(val);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for XorImm"),
+            },
             Instruction::Bit(_, operand8) => todo!(),
             Instruction::Res(_, operand8) => todo!(),
             Instruction::Set(_, operand8) => todo!(),
