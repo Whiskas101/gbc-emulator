@@ -885,18 +885,191 @@ impl GameBoyCPU {
                     0 => {
                         // rotate left, data in reg 8 through the carry bit as
                         // the rightmost bit
+                        let r8 = self.regs.read8(reg8);
+                        let carry = self.regs.get_flag(Flag::C);
+                        let carry_bit = match carry {
+                            true => 1,
+                            false => 0,
+                        };
+
+                        let new_carry = r8 & (1 << 7);
+                        // discard the MSB, and insert the carry bit.
+                        let shifted_r8 = ((r8) << 1) | (carry_bit);
+                        let z = shifted_r8 == 0;
+                        let n = false;
+                        let h = false;
+                        let c = new_carry != 0;
+                        self.regs.write8(reg8, shifted_r8);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
                     }
                     _ => panic!("Invalid step for Rl"),
                 },
                 Operand8::HlInd => match step {
-                    0 => {}
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.temp_val = val as u16;
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    }
+                    1 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = self.temp_val as u8;
+                        let new_carry = val & (1 << 7);
+                        let carry = self.regs.get_flag(Flag::C);
+                        let carry_bit = match carry {
+                            true => 1,
+                            false => 0,
+                        };
+
+                        let shifted_val = val << 1 | (carry_bit);
+                        let z = shifted_val == 0;
+                        let n = false;
+                        let h = false;
+                        let c = new_carry != 0;
+                        bus.write(target_addr, shifted_val);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
                     _ => panic!("Invalid step for Rl"),
                 },
             },
-            Instruction::RlA => todo!(),
-            Instruction::Rlc(operand8) => todo!(),
-            Instruction::RlcA => todo!(),
-            Instruction::Rr(operand8) => todo!(),
+            Instruction::RlA => match step {
+                0 => {
+                    // rotate left through the register
+                    let r8 = self.regs.read8(Reg8::A);
+                    let carry = self.regs.get_flag(Flag::C);
+                    let carry_bit = match carry {
+                        true => 1,
+                        false => 0,
+                    };
+
+                    let new_carry = r8 & (1 << 7);
+                    // discard the MSB, and insert the carry bit.
+                    let shifted_r8 = ((r8) << 1) | (carry_bit);
+                    let z = false;
+                    let n = false;
+                    let h = false;
+                    let c = new_carry != 0;
+                    self.regs.write8(Reg8::A, shifted_r8);
+                    self.regs.update_flags(z, n, h, c);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for RlA"),
+            },
+            Instruction::Rlc(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        // rotate reg8 left, but the carry itself isn't rotated
+                        let r8 = self.regs.read8(reg8);
+                        let msb = if r8 & (1 << 7) != 0 { 1 } else { 0 };
+
+                        let shifted_r8 = (r8 << 1) | msb;
+
+                        let z = shifted_r8 == 0;
+                        let n = false;
+                        let h = false;
+                        let c = msb != 0;
+
+                        self.regs.update_flags(z, n, h, c);
+                        self.regs.write8(reg8, shifted_r8);
+                        self.state = CpuState::FetchOpCode
+                    }
+                    _ => panic!("Invalid step for Rlc"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+
+                        self.temp_val = val as u16;
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    }
+                    1 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = self.temp_val as u8;
+
+                        let msb = if val & (1 << 7) != 0 { 1 } else { 0 };
+                        let shifted_val = (val << 1) | msb;
+                        let z = shifted_val == 0;
+                        let n = false;
+                        let h = false;
+                        let c = msb != 0;
+
+                        self.regs.update_flags(z, n, h, c);
+                        bus.write(target_addr, shifted_val);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Rlc"),
+                },
+            },
+            Instruction::RlcA => match step {
+                0 => {
+                    let A = self.regs.read8(Reg8::A);
+                    let msb = if A & (1 << 7) != 0 { 1 } else { 0 };
+
+                    let rotated_A = (A << 1) | msb;
+                    let z = false;
+                    let n = false;
+                    let h = false;
+                    let c = msb != 0;
+                    self.regs.update_flags(z, n, h, c);
+                    self.regs.write8(Reg8::A, rotated_A);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for RlcA"),
+            },
+            Instruction::Rr(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        // right rotate through the carry
+                        // carry stays on the LSB side for this
+                        let r8 = self.regs.read8(reg8);
+                        let carry = self.regs.get_flag(Flag::C);
+                        let lsb = if (r8 & 1) == 1 { 1 } else { 0 };
+                        let carry_bit = if carry { 1 } else { 0 };
+
+                        let rotated_r8 = (r8 >> 1) | (carry_bit << 7);
+
+                        let z = rotated_r8 == 0;
+                        let n = false;
+                        let h = false;
+                        let c = lsb != 0;
+
+                        self.regs.write8(reg8, rotated_r8);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Rr"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.temp_val = val as u16;
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    }
+                    1 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = self.temp_val as u8;
+                        let carry = self.regs.get_flag(Flag::C);
+                        let lsb = if (val & 1) == 1 { 1 } else { 0 };
+                        let carry_bit = if carry { 1 } else { 0 };
+
+                        let rotated_val = (val >> 1) | (carry_bit << 7);
+
+                        let z = rotated_val == 0;
+                        let n = false;
+                        let h = false;
+                        let c = lsb != 0;
+
+                        bus.write(target_addr, rotated_val);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Rr"),
+                },
+            },
             Instruction::RrA => todo!(),
             Instruction::Rrc(operand8) => todo!(),
             Instruction::RrcA => todo!(),
