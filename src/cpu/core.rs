@@ -1448,7 +1448,30 @@ impl GameBoyCPU {
                 _ => panic!("Invalid step for Jp"),
             },
             Instruction::Jr(cond) => match step {
-                0 => {}
+                0 => {
+                    // Jump relative
+                    // this takes fewer cycles than a pure JP instruction
+                    // those programmers in the 80s upto 2000s were actual gods
+
+                    // read one byte (the offset)
+                    let offset = self.fetch_advance_pc(bus);
+                    let offset_signed = offset as i8;
+                    if self.check_cond(cond) {
+                        let new_pc = self
+                            .regs
+                            .read16(Reg16::PC)
+                            .wrapping_add_signed(offset_signed as i16);
+
+                        self.regs.write16(Reg16::PC, new_pc);
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    } else {
+                        self.state = CpuState::FetchOpCode;
+                    }
+                }
+                1 => {
+                    // Burning a cycle, because the specs say so.
+                    self.state = CpuState::FetchOpCode;
+                }
                 _ => panic!("Invalid step for Jr"),
             },
             Instruction::Ret(cond) => todo!(),
