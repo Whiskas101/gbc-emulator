@@ -1591,7 +1591,40 @@ impl GameBoyCPU {
                 _ => panic!("Invalid Step for Reti"),
             },
 
-            Instruction::Rst(_) => todo!(),
+            Instruction::Rst(vec) => match step {
+                0 => {
+                    // the upper 8 bits are assumed to be zeros
+                    let target_addr = vec as u16;
+                    self.temp_val = target_addr;
+                    let sp = self.regs.read16(Reg16::SP);
+                    let pc = self.regs.read16(Reg16::PC);
+                    let decremented_sp = sp.wrapping_sub(1);
+
+                    // write the high byte into the stack
+                    let high_byte = (pc >> 8) as u8;
+                    bus.write(sp, high_byte);
+                    self.regs.write16(Reg16::SP, decremented_sp);
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    let sp = self.regs.read16(Reg16::SP);
+                    let pc = self.regs.read16(Reg16::PC);
+                    let decremented_sp = sp.wrapping_sub(1);
+
+                    let low_byte = (pc & 0x00FF) as u8;
+
+                    bus.write(sp, low_byte);
+                    self.regs.write16(Reg16::SP, decremented_sp);
+                    self.state = CpuState::Executing { instr, step: 2 };
+                }
+                2 => {
+                    let target_addr = self.temp_val;
+                    self.regs.write16(Reg16::PC, target_addr);
+                    self.state = CpuState::FetchOpCode;
+                }
+
+                _ => panic!("Invalid step for Rst"),
+            },
             Instruction::Ccf => todo!(),
             Instruction::Scf => todo!(),
             Instruction::AddSpImm => todo!(),
