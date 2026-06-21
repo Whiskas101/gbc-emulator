@@ -72,7 +72,7 @@ impl Regs {
         }
     }
 
-    pub fn get_flag(&mut self, flag_mask: u8) -> bool {
+    pub fn get_flag(&self, flag_mask: u8) -> bool {
         (self.f & flag_mask) != 0
     }
 
