@@ -25,6 +25,7 @@ struct IncResult {
 pub struct GameBoyCPU {
     // Where it all begins! (kinda)
     pub state: CpuState,
+    pub ime: bool,
     regs: Regs,
     temp_val: u16,
 }
@@ -35,6 +36,7 @@ impl GameBoyCPU {
             regs: Regs::new(),
             state: CpuState::FetchOpCode,
             temp_val: 0,
+            ime: false,
         }
     }
 
