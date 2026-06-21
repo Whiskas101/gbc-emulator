@@ -1209,7 +1209,54 @@ impl GameBoyCPU {
                     _ => panic!("Invalid step for Sla"),
                 },
             },
-            Instruction::Sra(operand8) => todo!(),
+            Instruction::Sra(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        // bit 7, the MSB must remain unchanged after the right shift
+                        let r8 = self.regs.read8(reg8);
+                        let lsb = if (r8 & 1) != 0 { 1 } else { 0 };
+                        let msb = r8 & (1 << 7);
+
+                        let shifted_r8 = (r8 >> 1) | msb;
+
+                        let z = shifted_r8 == 0;
+                        let n = false;
+                        let h = false;
+                        let c = lsb != 0;
+
+                        self.regs.write8(reg8, shifted_r8);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Sra"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.temp_val = val as u16;
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    }
+                    1 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = self.temp_val as u8;
+                        let lsb = if (val & 1) != 0 { 1 } else { 0 };
+                        let msb = val & (1 << 7);
+
+                        let shifted_val = (val >> 1) | msb;
+
+                        let z = shifted_val == 0;
+                        let n = false;
+                        let h = false;
+                        let c = lsb != 0;
+
+                        bus.write(target_addr, shifted_val);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Sra"),
+                },
+            },
             Instruction::Srl(operand8) => todo!(),
             Instruction::Swap(operand8) => todo!(),
             Instruction::Call(cond) => todo!(),
