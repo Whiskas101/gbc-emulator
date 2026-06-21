@@ -1357,7 +1357,59 @@ impl GameBoyCPU {
                     _ => panic!("Invalid step for Swap"),
                 },
             },
-            Instruction::Call(cond) => todo!(),
+            Instruction::Call(cond) => match step {
+                0 => {
+                    // first get the damn address n16
+                    let low_bytes = self.fetch_advance_pc(bus);
+                    self.temp_val = low_bytes as u16;
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    // get the high bytes, and the full address
+                    let low_bytes = self.temp_val as u16;
+                    let high_bytes = self.fetch_advance_pc(bus) as u16;
+                    let full_addr = high_bytes << 8 | low_bytes;
+
+                    if self.check_cond(cond) {
+                        self.temp_val = full_addr;
+                        self.state = CpuState::Executing { instr, step: 2 };
+                    } else {
+                        self.state = CpuState::FetchOpCode;
+                    }
+                }
+                2 => {
+                    // decrement SP
+                    let sp = self.regs.read16(Reg16::SP);
+                    let decremented_sp = sp.wrapping_sub(1);
+                    self.regs.write16(Reg16::SP, decremented_sp);
+                    self.state = CpuState::Executing { instr, step: 3 };
+                }
+                3 => {
+                    //get the return address
+                    //write high byte into the addr pointed to by SP
+                    //decrement SP again
+                    let return_addr = self.regs.read16(Reg16::PC);
+                    let sp = self.regs.read16(Reg16::SP);
+                    let decremented_sp = sp.wrapping_sub(1);
+                    self.regs.write16(Reg16::SP, decremented_sp);
+
+                    let high_byte = ((return_addr & 0xFF00) >> 8) as u8;
+                    bus.write(sp, high_byte);
+                    self.state = CpuState::Executing { instr, step: 4 };
+                }
+                4 => {
+                    let return_addr = self.regs.read16(Reg16::PC);
+                    let sp = self.regs.read16(Reg16::SP);
+                    let low_byte = (return_addr & 0x00FF) as u8;
+                    bus.write(sp, low_byte);
+
+                    // set the pc to the actual addr retrieved initially
+                    let call_addr = self.temp_val;
+                    self.regs.write16(Reg16::PC, call_addr);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Call"),
+            },
             Instruction::JpHl => todo!(),
             Instruction::Jp(cond) => todo!(),
             Instruction::Jr(cond) => todo!(),
