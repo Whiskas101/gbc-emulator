@@ -1257,7 +1257,52 @@ impl GameBoyCPU {
                     _ => panic!("Invalid step for Sra"),
                 },
             },
-            Instruction::Srl(operand8) => todo!(),
+            Instruction::Srl(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        let r8 = self.regs.read8(reg8);
+                        let lsb = if (r8 & 1) != 0 { 1 } else { 0 };
+
+                        let shifted_r8 = r8 >> 1;
+
+                        let z = shifted_r8 == 0;
+                        let n = false;
+                        let h = false;
+                        let c = lsb != 0;
+
+                        self.regs.update_flags(z, n, h, c);
+                        self.regs.write8(reg8, shifted_r8);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Srl"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.temp_val = val as u16;
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    }
+                    1 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = self.temp_val as u8;
+
+                        let lsb = if (val & 1) != 0 { 1 } else { 0 };
+
+                        let shifted_val = val >> 1;
+
+                        let z = shifted_val == 0;
+                        let n = false;
+                        let h = false;
+                        let c = lsb != 0;
+
+                        self.regs.update_flags(z, n, h, c);
+                        bus.write(target_addr, shifted_val);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Srl"),
+                },
+            },
             Instruction::Swap(operand8) => todo!(),
             Instruction::Call(cond) => todo!(),
             Instruction::JpHl => todo!(),
