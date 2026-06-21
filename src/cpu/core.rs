@@ -1410,9 +1410,47 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for Call"),
             },
-            Instruction::JpHl => todo!(),
-            Instruction::Jp(cond) => todo!(),
-            Instruction::Jr(cond) => todo!(),
+            Instruction::JpHl => match step {
+                0 => {
+                    // copy the addr from HL into PC
+                    let HL = self.regs.read16(Reg16::HL);
+                    self.regs.write16(Reg16::PC, HL);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for JpHl"),
+            },
+            Instruction::Jp(cond) => match step {
+                0 => {
+                    // get the target jump addr
+                    let low_byte = self.fetch_advance_pc(bus);
+                    self.temp_val = low_byte as u16;
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    let low_byte = self.temp_val as u16;
+                    let high_byte = self.fetch_advance_pc(bus) as u16;
+                    let jump_addr = (low_byte & 0x00FF) | high_byte << 8;
+                    if self.check_cond(cond) {
+                        self.regs.write16(Reg16::PC, jump_addr);
+
+                        self.state = CpuState::Executing { instr, step: 2 };
+                    } else {
+                        self.state = CpuState::FetchOpCode;
+                    }
+                }
+                2 => {
+                    // PURELY to burn cpu cycle according to the specs
+                    // it's meant to consume 4 cycles, when a jump occurs
+                    // only 3 when the cond fails the jump, 1 jump is implicit in
+                    // reaching execute_step func, so 3 steps must happen here.
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Jp"),
+            },
+            Instruction::Jr(cond) => match step {
+                0 => {}
+                _ => panic!("Invalid step for Jr"),
+            },
             Instruction::Ret(cond) => todo!(),
             Instruction::Reti => todo!(),
             Instruction::Rst(_) => todo!(),
