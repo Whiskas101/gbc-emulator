@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 use super::registers::{Reg8, Reg16, Regs};
 use crate::bus;
-use crate::cpu::{Flag, Instruction, Operand8};
+use crate::cpu::{Cond, Flag, Instruction, Operand8};
 use core::panic;
 
 pub enum CpuState {
@@ -46,6 +46,16 @@ impl GameBoyCPU {
 
         self.regs.s_PC(pc.wrapping_add(1));
         val
+    }
+
+    fn check_cond(&self, cond: Cond) -> bool {
+        match cond {
+            Cond::NotZero => !self.regs.get_flag(Flag::Z),
+            Cond::Zero => self.regs.get_flag(Flag::Z),
+            Cond::NotCarry => !self.regs.get_flag(Flag::C),
+            Cond::Carry => self.regs.get_flag(Flag::C),
+            Cond::Always => true,
+        }
     }
 
     fn alu_add(&mut self, val: u8, use_carry: bool) {
