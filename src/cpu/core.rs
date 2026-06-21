@@ -1160,7 +1160,55 @@ impl GameBoyCPU {
 
                 _ => panic!("Invalid step for RrcA"),
             },
-            Instruction::Sla(operand8) => todo!(),
+            Instruction::Sla(operand8) => match operand8 {
+                Operand8::Reg(reg8) => match step {
+                    0 => {
+                        // left shift reg8
+                        let r8 = self.regs.read8(reg8);
+
+                        // msb becomes the new carry
+                        let msb = if r8 & (1 << 7) != 0 { 1 } else { 0 };
+
+                        let shifted_r8 = r8 << 1;
+
+                        let z = shifted_r8 == 0;
+                        let n = false;
+                        let h = false;
+                        let c = msb != 0;
+
+                        self.regs.write8(reg8, shifted_r8);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Sla"),
+                },
+                Operand8::HlInd => match step {
+                    0 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = bus.read(target_addr);
+                        self.temp_val = val as u16;
+                        self.state = CpuState::Executing { instr, step: 1 };
+                    }
+                    1 => {
+                        let target_addr = self.regs.read16(Reg16::HL);
+                        let val = self.temp_val as u8;
+
+                        let msb = if val & (1 << 7) != 0 { 1 } else { 0 };
+
+                        let shifted_val = val << 1;
+
+                        let z = shifted_val == 0;
+                        let n = false;
+                        let h = false;
+                        let c = msb != 0;
+
+                        bus.write(target_addr, shifted_val);
+                        self.regs.update_flags(z, n, h, c);
+                        self.state = CpuState::FetchOpCode;
+                    }
+                    _ => panic!("Invalid step for Sla"),
+                },
+            },
             Instruction::Sra(operand8) => todo!(),
             Instruction::Srl(operand8) => todo!(),
             Instruction::Swap(operand8) => todo!(),
