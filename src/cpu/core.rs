@@ -1556,7 +1556,41 @@ impl GameBoyCPU {
                     }
                 }
             },
-            Instruction::Reti => todo!(),
+            Instruction::Reti => match step {
+                // Set the IME interrupt to enable, and Ret
+                0 => {
+                    // pop the data off the stack
+                    let sp = self.regs.read16(Reg16::SP);
+                    let incremented_sp = sp.wrapping_add(1);
+
+                    // read the data pointed to by the stack [sp]
+                    let low_byte = bus.read(sp);
+                    self.temp_val = low_byte as u16;
+                    self.regs.write16(Reg16::SP, incremented_sp);
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    let sp = self.regs.read16(Reg16::SP);
+                    let incremented_sp = sp.wrapping_add(1);
+
+                    let low_byte = self.temp_val;
+                    let high_byte = bus.read(sp) as u16;
+                    let full_addr = high_byte << 8 | low_byte;
+
+                    self.temp_val = full_addr;
+                    self.regs.write16(Reg16::SP, incremented_sp);
+                    self.state = CpuState::Executing { instr, step: 2 };
+                }
+                2 => {
+                    let full_addr = self.temp_val;
+
+                    self.regs.write16(Reg16::PC, full_addr);
+                    self.state = CpuState::FetchOpCode;
+                    self.ime = true;
+                }
+                _ => panic!("Invalid Step for Reti"),
+            },
+
             Instruction::Rst(_) => todo!(),
             Instruction::Ccf => todo!(),
             Instruction::Scf => todo!(),
