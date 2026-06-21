@@ -1474,7 +1474,86 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for Jr"),
             },
-            Instruction::Ret(cond) => todo!(),
+            Instruction::Ret(cond) => match cond {
+                Cond::NotZero | Cond::Zero | Cond::NotCarry | Cond::Carry => {
+                    // The conditional variant
+                    match step {
+                        0 => {
+                            if self.check_cond(cond) {
+                                self.state = CpuState::Executing { instr, step: 1 };
+                            } else {
+                                self.state = CpuState::FetchOpCode;
+                            }
+                        }
+                        1 => {
+                            // pop the data off the stack
+                            let sp = self.regs.read16(Reg16::SP);
+                            let incremented_sp = sp.wrapping_add(1);
+
+                            // read the data pointed to by the stack [sp]
+                            let low_byte = bus.read(sp);
+                            self.temp_val = low_byte as u16;
+                            self.regs.write16(Reg16::SP, incremented_sp);
+                            self.state = CpuState::Executing { instr, step: 2 };
+                        }
+                        2 => {
+                            let sp = self.regs.read16(Reg16::SP);
+                            let incremented_sp = sp.wrapping_add(1);
+
+                            let low_byte = self.temp_val;
+                            let high_byte = bus.read(sp) as u16;
+                            let full_addr = high_byte << 8 | low_byte;
+
+                            self.temp_val = full_addr;
+                            self.regs.write16(Reg16::SP, incremented_sp);
+                            self.state = CpuState::Executing { instr, step: 3 };
+                        }
+                        3 => {
+                            let full_addr = self.temp_val;
+
+                            self.regs.write16(Reg16::PC, full_addr);
+                            self.state = CpuState::FetchOpCode;
+                        }
+                        _ => panic!("Invalid Step for Ret (conditional)"),
+                    }
+                }
+                Cond::Always => {
+                    // unconditional variant
+                    // (consumes 4 cycles, 3 mapped here 1 implicit)
+                    match step {
+                        0 => {
+                            // pop the data off the stack
+                            let sp = self.regs.read16(Reg16::SP);
+                            let incremented_sp = sp.wrapping_add(1);
+
+                            // read the data pointed to by the stack [sp]
+                            let low_byte = bus.read(sp);
+                            self.temp_val = low_byte as u16;
+                            self.regs.write16(Reg16::SP, incremented_sp);
+                            self.state = CpuState::Executing { instr, step: 1 };
+                        }
+                        1 => {
+                            let sp = self.regs.read16(Reg16::SP);
+                            let incremented_sp = sp.wrapping_add(1);
+
+                            let low_byte = self.temp_val;
+                            let high_byte = bus.read(sp) as u16;
+                            let full_addr = high_byte << 8 | low_byte;
+
+                            self.temp_val = full_addr;
+                            self.regs.write16(Reg16::SP, incremented_sp);
+                            self.state = CpuState::Executing { instr, step: 2 };
+                        }
+                        2 => {
+                            let full_addr = self.temp_val;
+
+                            self.regs.write16(Reg16::PC, full_addr);
+                            self.state = CpuState::FetchOpCode;
+                        }
+                        _ => panic!("Invalid Step for Ret (unconditional)"),
+                    }
+                }
+            },
             Instruction::Reti => todo!(),
             Instruction::Rst(_) => todo!(),
             Instruction::Ccf => todo!(),
