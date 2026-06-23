@@ -1681,7 +1681,39 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for AddSpImm"),
             },
-            Instruction::LdImm16Sp => todo!(),
+            Instruction::LdImm16Sp => match step {
+                // LD [n16], SP
+                // Load the value in SP to the addr pointed to by n16
+                0 => {
+                    // load the low byte
+                    let low_byte = self.fetch_advance_pc(bus) as u16;
+                    self.temp_val = low_byte;
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    let low_byte = self.temp_val;
+                    let high_byte = self.fetch_advance_pc(bus) as u16;
+                    let target_addr = (high_byte << 8) | (low_byte);
+                    self.temp_val = target_addr;
+                    self.state = CpuState::Executing { instr, step: 2 };
+                }
+                2 => {
+                    let target_addr = self.temp_val;
+                    let sp = self.regs.read16(Reg16::SP);
+                    let lower_half = (sp & 0xFF) as u8;
+                    bus.write(target_addr, lower_half);
+                    self.state = CpuState::Executing { instr, step: 3 };
+                }
+                3 => {
+                    let target_addr = self.temp_val;
+                    let sp = self.regs.read16(Reg16::SP);
+                    let upper_half = (sp >> 8) as u8;
+                    let next_addr = target_addr.wrapping_add(1);
+                    bus.write(next_addr, upper_half);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdImm16Sp"),
+            },
             Instruction::LdHlSpImm => todo!(),
             Instruction::LdSpHl => todo!(),
             Instruction::Pop(reg16) => todo!(),
