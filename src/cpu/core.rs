@@ -1649,7 +1649,38 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for Scf"),
             },
-            Instruction::AddSpImm => todo!(),
+            Instruction::AddSpImm => match step {
+                0 => {
+                    let e8 = self.fetch_advance_pc(bus);
+                    self.temp_val = e8 as u16;
+
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    // THIS HAS TO BURN 4 CYCLES, THIS has to happen
+                    // even though I could do it in one, for the sake of the emulation
+                    // sacrifices must be made (the emulator will break without it,
+                    // in unexpected ways)
+                    self.state = CpuState::Executing { instr, step: 2 };
+                }
+                2 => {
+                    let sp = self.regs.read16(Reg16::SP);
+                    let raw_e8 = (self.temp_val & 0xFF) as u8;
+
+                    let signed_e8 = raw_e8 as i8;
+
+                    let z = false;
+                    let n = false;
+                    let h = (sp & 0x0F) + (raw_e8 as u16 & 0x0F) > 0x0F;
+                    let c = (sp & 0xFF) + (raw_e8 as u16) > 0xFF;
+
+                    let result = sp.wrapping_add_signed(signed_e8 as i16);
+                    self.regs.update_flags(z, n, h, c);
+                    self.regs.write16(Reg16::SP, result);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for AddSpImm"),
+            },
             Instruction::LdImm16Sp => todo!(),
             Instruction::LdHlSpImm => todo!(),
             Instruction::LdSpHl => todo!(),
