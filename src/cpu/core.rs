@@ -1625,8 +1625,30 @@ impl GameBoyCPU {
 
                 _ => panic!("Invalid step for Rst"),
             },
-            Instruction::Ccf => todo!(),
-            Instruction::Scf => todo!(),
+            Instruction::Ccf => match step {
+                0 => {
+                    // just complement the carry flag
+                    let z = self.regs.get_flag(Flag::Z);
+                    let n = false;
+                    let h = false;
+                    let c = !self.regs.get_flag(Flag::C);
+                    self.regs.update_flags(z, n, h, c);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Ccf"),
+            },
+            Instruction::Scf => match step {
+                0 => {
+                    // just set the carry flag
+                    let z = self.regs.get_flag(Flag::Z);
+                    let n = false;
+                    let h = false;
+                    let c = true;
+                    self.regs.update_flags(z, n, h, c);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Scf"),
+            },
             Instruction::AddSpImm => todo!(),
             Instruction::LdImm16Sp => todo!(),
             Instruction::LdHlSpImm => todo!(),
