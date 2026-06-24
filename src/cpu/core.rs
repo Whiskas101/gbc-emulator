@@ -1778,7 +1778,40 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for Pop"),
             },
-            Instruction::Push(reg16) => todo!(),
+            Instruction::Push(reg16) => match step {
+                // first, decrement SP
+                // LD [SP], HIGH(r16)
+                // decrement SP
+                // LD [SP], LOW(r16)
+                0 => {
+                    let sp = self.regs.read16(Reg16::SP);
+                    let decremented_sp = sp.wrapping_sub(1);
+                    self.regs.write16(Reg16::SP, decremented_sp);
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    let r16 = self.regs.read16(reg16);
+                    let sp = self.regs.read16(Reg16::SP);
+                    let high_byte = (r16 >> 8) as u8;
+                    bus.write(sp, high_byte);
+                    self.state = CpuState::Executing { instr, step: 2 };
+                }
+                2 => {
+                    let sp = self.regs.read16(Reg16::SP);
+                    let decremented_sp = sp.wrapping_sub(1);
+                    self.regs.write16(Reg16::SP, decremented_sp);
+
+                    let r16: u16 = self.regs.read16(reg16);
+                    let sp = self.regs.read16(Reg16::SP);
+
+                    let low_byte = (r16 & 0x00FF) as u8;
+
+                    bus.write(sp, low_byte);
+                    self.state = CpuState::FetchOpCode;
+                }
+
+                _ => panic!("Invalid step for Push"),
+            },
             Instruction::Di => todo!(),
             Instruction::Ei => todo!(),
             Instruction::Halt => todo!(),
