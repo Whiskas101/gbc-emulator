@@ -28,6 +28,7 @@ pub struct GameBoyCPU {
     pub ime: bool,
     regs: Regs,
     temp_val: u16,
+    ei_delay: u8,
 }
 
 impl GameBoyCPU {
@@ -37,6 +38,7 @@ impl GameBoyCPU {
             state: CpuState::FetchOpCode,
             temp_val: 0,
             ime: false,
+            ei_delay: 0,
         }
     }
 
@@ -1812,8 +1814,23 @@ impl GameBoyCPU {
 
                 _ => panic!("Invalid step for Push"),
             },
-            Instruction::Di => todo!(),
-            Instruction::Ei => todo!(),
+            Instruction::Di => match step {
+                //set the IME to false
+                0 => {
+                    self.ime = false;
+                    self.ei_delay = 0;
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Di"),
+            },
+            Instruction::Ei => match step {
+                0 => {
+                    self.ime = false;
+                    self.ei_delay = 2;
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Ei"),
+            },
             Instruction::Halt => todo!(),
             Instruction::Daa => todo!(),
             Instruction::Nop => todo!(),
@@ -1831,6 +1848,19 @@ impl GameBoyCPU {
 
         match self.state {
             CpuState::FetchOpCode => {
+                // decrement the ei_delay
+                if self.ei_delay > 0 {
+                    self.ei_delay -= 1;
+                    if self.ei_delay == 0 {
+                        // time to disable the interuppt
+                        self.ime = true;
+                    }
+                }
+
+                // TODO:
+                // need to check for ime flag and have the interuppt trigger
+                // if self.ime == true ... probably
+
                 let opcode = self.fetch_advance_pc(bus);
                 let instr = Instruction::from_byte(opcode);
 
