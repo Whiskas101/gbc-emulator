@@ -15,6 +15,9 @@ pub enum CpuState {
 
     // Waiting for some interrupt
     Halted,
+
+    // interrupt servcing
+    InterruptDispatch { vector: u16, step: u8 },
 }
 
 struct IncResult {
@@ -61,7 +64,7 @@ impl GameBoyCPU {
 
     fn is_interrupt_pending(&self, bus: &bus::Bus) -> bool {
         let ie = bus.read(0xFFFF); // Interrupt Enable register
-        let if_reg = bus.read(0xFF0F); // Interrupt Flag register
+        let if_reg = bus.read(0xF0FF); // Interrupt Flag register
 
         // The Game Boy has 5 interrupts mapped to the lower 5 bits.
         // If any bit is turned on in both registers simultaneously, an interrupt is pending.
@@ -1892,7 +1895,25 @@ impl GameBoyCPU {
 
                 // TODO:
                 // need to check for ime flag and have the interuppt trigger
-                // if self.ime == true ... probably
+                if self.ime == true && self.is_interrupt_pending(bus) {
+                    let ie = bus.read(0xFFFF);
+                    let if_reg = bus.read(0xF0FF);
+                    let pending = ie & if_reg & 0x1F;
+
+                    let interrupt_bit = pending.trailing_zeros() as u8;
+                    let clear_mask = !(1 << interrupt_bit);
+                    bus.write(0xFF0F, if_reg & clear_mask);
+
+                    self.ime = false;
+
+                    let vector_addr = 0x0040 + (interrupt_bit as u16 * 0x08);
+
+                    self.state = CpuState::InterruptDispatch {
+                        vector: vector_addr,
+                        step: 0,
+                    };
+                    return; // need this early return
+                }
 
                 let opcode = self.fetch_advance_pc(bus);
                 let instr = Instruction::from_byte(opcode);
@@ -1952,6 +1973,33 @@ impl GameBoyCPU {
                     self.state = CpuState::FetchOpCode;
                 }
             }
+            CpuState::InterruptDispatch { vector, step } => match step {
+                0 => {
+                    // just an internal delay
+                    self.state = CpuState::InterruptDispatch { vector, step: 1 };
+                }
+                1 => {
+                    let sp = self.regs.read16(Reg16::SP);
+                    let pc = self.regs.read16(Reg16::PC);
+                    let decremented_sp = sp.wrapping_sub(1);
+                    bus.write(decremented_sp, (pc >> 8) as u8);
+                    self.regs.write16(Reg16::SP, decremented_sp);
+                    self.state = CpuState::InterruptDispatch { vector, step: 2 };
+                }
+                2 => {
+                    let sp = self.regs.read16(Reg16::SP);
+                    let pc = self.regs.read16(Reg16::PC);
+                    let decremented_sp = sp.wrapping_sub(1);
+                    bus.write(decremented_sp, (pc & 0xFF) as u8);
+                    self.regs.write16(Reg16::SP, decremented_sp);
+                    self.state = CpuState::InterruptDispatch { vector, step: 3 };
+                }
+                3 => {
+                    self.regs.write16(Reg16::PC, vector);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for InterruptDispatch"),
+            },
         }
     }
 
