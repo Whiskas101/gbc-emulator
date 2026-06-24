@@ -29,6 +29,7 @@ pub struct GameBoyCPU {
     regs: Regs,
     temp_val: u16,
     ei_delay: u8,
+    halt_bug_triggered: bool,
 }
 
 impl GameBoyCPU {
@@ -39,6 +40,7 @@ impl GameBoyCPU {
             temp_val: 0,
             ime: false,
             ei_delay: 0,
+            halt_bug_triggered: false,
         }
     }
 
@@ -48,8 +50,22 @@ impl GameBoyCPU {
         let pc = self.regs.read16(Reg16::PC);
         let val = bus.read(pc);
 
-        self.regs.s_PC(pc.wrapping_add(1));
+        if !self.halt_bug_triggered {
+            // proceed normally if there's no halt hardware bug
+            self.regs.s_PC(pc.wrapping_add(1));
+        } else {
+            self.halt_bug_triggered = false;
+        }
         val
+    }
+
+    fn is_interrupt_pending(&self, bus: &bus::Bus) -> bool {
+        let ie = bus.read(0xFFFF); // Interrupt Enable register
+        let if_reg = bus.read(0xFF0F); // Interrupt Flag register
+
+        // The Game Boy has 5 interrupts mapped to the lower 5 bits.
+        // If any bit is turned on in both registers simultaneously, an interrupt is pending.
+        (ie & if_reg & 0x1F) != 0
     }
 
     fn check_cond(&self, cond: Cond) -> bool {
@@ -1831,7 +1847,24 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for Ei"),
             },
-            Instruction::Halt => todo!(),
+            Instruction::Halt => match step {
+                0 => {
+                    let pending = self.is_interrupt_pending(bus);
+                    if self.ime {
+                        self.state = CpuState::Halted;
+                    } else {
+                        if !pending {
+                            self.state = CpuState::Halted;
+                        } else {
+                            // IME is dead, but an interrupt is already waiting.
+                            // so refuse to halt, go right back to fetching, and trigger the glitch
+                            self.halt_bug_triggered = true;
+                            self.state = CpuState::FetchOpCode;
+                        }
+                    }
+                }
+                _ => panic!("Invalid step for Halt"),
+            },
             Instruction::Daa => todo!(),
             Instruction::Nop => todo!(),
             Instruction::Stop => todo!(),
@@ -1915,6 +1948,9 @@ impl GameBoyCPU {
             CpuState::Halted => {
                 // DO NOTHING, ofc
                 // Until an interrupt does some work
+                if self.is_interrupt_pending(bus) {
+                    self.state = CpuState::FetchOpCode;
+                }
             }
         }
     }
