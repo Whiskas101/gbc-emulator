@@ -1740,7 +1740,15 @@ impl GameBoyCPU {
 
                 _ => panic!("Invalid step for LdHlSpImm"),
             },
-            Instruction::LdSpHl => todo!(),
+            Instruction::LdSpHl => match step {
+                0 => {
+                    // copy the data in reg HL to SP
+                    let HL = self.regs.read16(Reg16::HL);
+                    self.regs.write16(Reg16::SP, HL);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for LdSpHl"),
+            },
             Instruction::Pop(reg16) => todo!(),
             Instruction::Push(reg16) => todo!(),
             Instruction::Di => todo!(),
