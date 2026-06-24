@@ -1749,7 +1749,35 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for LdSpHl"),
             },
-            Instruction::Pop(reg16) => todo!(),
+            Instruction::Pop(reg16) => match step {
+                // load first into the low bytes of reg16
+                // the contents of data pointed to by the SP
+                // LD LOW(reg16), [SP]
+                // Then increment, SP + 1
+                // Then, LD HIGH(reg16), [SP]
+                // Then increment, SP + 1 (again)
+                0 => {
+                    let sp = self.regs.read16(Reg16::SP);
+                    let low_byte = bus.read(sp);
+                    let incremented_sp = sp.wrapping_add(1);
+
+                    self.temp_val = low_byte as u16;
+                    self.regs.write16(Reg16::SP, incremented_sp);
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    let sp = self.regs.read16(Reg16::SP);
+                    let high_byte = bus.read(sp) as u16;
+                    let low_byte = self.temp_val;
+                    let incremented_sp = sp.wrapping_add(1);
+                    let target_addr = (high_byte << 8) | low_byte;
+
+                    self.regs.write16(Reg16::SP, incremented_sp);
+                    self.regs.write16(reg16, target_addr);
+                    self.state = CpuState::FetchOpCode;
+                }
+                _ => panic!("Invalid step for Pop"),
+            },
             Instruction::Push(reg16) => todo!(),
             Instruction::Di => todo!(),
             Instruction::Ei => todo!(),
