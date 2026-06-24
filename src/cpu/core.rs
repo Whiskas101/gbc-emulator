@@ -1714,7 +1714,32 @@ impl GameBoyCPU {
                 }
                 _ => panic!("Invalid step for LdImm16Sp"),
             },
-            Instruction::LdHlSpImm => todo!(),
+            Instruction::LdHlSpImm => match step {
+                // add the signed value e8 to SP and
+                // copy the result to HL
+                0 => {
+                    let e8 = self.fetch_advance_pc(bus);
+                    self.temp_val = e8 as u16;
+                    self.state = CpuState::Executing { instr, step: 1 };
+                }
+                1 => {
+                    let raw_e8 = self.temp_val;
+                    let sp = self.regs.read16(Reg16::SP);
+                    let signed_e8 = raw_e8 as u8 as i8;
+                    let result = sp.wrapping_add_signed(signed_e8 as i16);
+
+                    let z = false;
+                    let n = false;
+                    let h = (sp & 0x0F) + (raw_e8 as u16 & 0x0F) > 0x0F;
+                    let c = (sp & 0xFF) + (raw_e8 as u16) > 0xFF;
+
+                    self.regs.write16(Reg16::HL, result);
+                    self.regs.update_flags(z, n, h, c);
+                    self.state = CpuState::FetchOpCode;
+                }
+
+                _ => panic!("Invalid step for LdHlSpImm"),
+            },
             Instruction::LdSpHl => todo!(),
             Instruction::Pop(reg16) => todo!(),
             Instruction::Push(reg16) => todo!(),
