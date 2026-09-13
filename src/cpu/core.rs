@@ -64,7 +64,7 @@ impl GameBoyCPU {
 
     fn is_interrupt_pending(&self, bus: &bus::Bus) -> bool {
         let ie = bus.read(0xFFFF); // Interrupt Enable register
-        let if_reg = bus.read(0xF0FF); // Interrupt Flag register
+        let if_reg = bus.read(0xFF0F); // Interrupt Flag register
 
         // The Game Boy has 5 interrupts mapped to the lower 5 bits.
         // If any bit is turned on in both registers simultaneously, an interrupt is pending.
@@ -1897,7 +1897,7 @@ impl GameBoyCPU {
                 // need to check for ime flag and have the interuppt trigger
                 if self.ime == true && self.is_interrupt_pending(bus) {
                     let ie = bus.read(0xFFFF);
-                    let if_reg = bus.read(0xF0FF);
+                    let if_reg = bus.read(0xFF0F);
                     let pending = ie & if_reg & 0x1F;
 
                     let interrupt_bit = pending.trailing_zeros() as u8;
